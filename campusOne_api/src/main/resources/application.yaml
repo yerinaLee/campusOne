@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: campusOne
+  datasource:
+    url: jdbc:oracle:thin:@localhost:1521/XEPDB1
+    username: UAMS
+    password: UamsPass123!
+    driver-class-name: oracle.jdbc.OracleDriver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    database-platform: org.hibernate.dialect.OracleDialect
+    properties:
+      hibernate:
+        default_schema: UAMS
+        format_sql: false
+        jdbc:
+          time_zone: Asia/Seoul
+    show-sql: false
+
+jwt:
+  secret: campusOneSecretKeyForJWTSigningMustBe256BitsLongOrMore1234567890ABCDEF
+  access-token-validity: 86400000
+  refresh-token-validity: 604800000
+
+server:
+  port: 8080
+
+logging:
+  level:
+    com.campus: DEBUG

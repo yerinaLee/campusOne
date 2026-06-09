@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>UAMS ERD — 전체 관계도</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#13131a;color:#e2e0d8;font-family:'Segoe UI',-apple-system,sans-serif;font-size:12px;overflow:hidden}
+
+#hdr{
+  position:fixed;top:0;left:0;right:0;height:44px;
+  background:#1a1a24;border-bottom:1px solid #2e2e3e;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 16px;z-index:300;gap:12px;
+}
+#hdr h1{font-size:13px;font-weight:600;color:#e2e0d8;white-space:nowrap}
+#hdr p{font-size:10px;color:#6a6a80}
+.hbadges{display:flex;gap:5px;flex-wrap:nowrap}
+.hb{padding:2px 8px;border-radius:20px;font-size:9px;font-weight:700;border:1px solid;white-space:nowrap;cursor:pointer;transition:opacity .15s}
+.hb:hover{opacity:.7}
+#tip{font-size:10px;color:#58587a;white-space:nowrap}
+
+#wrap{position:fixed;top:44px;left:0;right:0;bottom:0;overflow:hidden;cursor:grab}
+#wrap.panning{cursor:grabbing}
+#scene{position:absolute;transform-origin:0 0}
+
+svg#lines{position:absolute;top:0;left:0;pointer-events:none;overflow:visible}
+
+/* ── 테이블 카드 ── */
+.tcard{
+  position:absolute;
+  background:#1c1c26;
+  border:1.5px solid #32323e;
+  border-radius:10px;
+  width:260px;
+  cursor:move;
+  user-select:none;
+  transition:border-color .15s,box-shadow .15s;
+}
+.tcard:hover{border-color:#52527a;box-shadow:0 6px 28px rgba(0,0,0,.6)}
+.tcard.dragging{box-shadow:0 10px 40px rgba(0,0,0,.8);z-index:200!important}
+
+.thead{padding:9px 13px 7px;border-bottom:1px solid #2a2a38;border-radius:9px 9px 0 0}
+.tname{font-size:12px;font-weight:700;letter-spacing:.3px}
+.tdesc{font-size:10px;color:#58586a;margin-top:2px;line-height:1.4}
+
+.tcols{padding:3px 0 5px}
+.col{padding:3px 13px;display:grid;grid-template-columns:16px 1fr;gap:0 6px;align-items:start}
+.col:hover{background:rgba(255,255,255,.025)}
+.ck{font-size:10px;text-align:center;line-height:1.9;flex-shrink:0}
+.fkl{font-size:8px;font-weight:700;color:#5a9fe8;line-height:1.9}
+.ci{}
+.cn{font-size:11px;font-weight:600;color:#d0d0ca;line-height:1.8}
+.cn2{font-size:9px;color:#505060;line-height:1.4;margin-top:0px}
+.ct{font-size:9px;font-family:monospace;color:#444450;float:right;margin-top:2px}
+.chips{display:flex;gap:3px;flex-wrap:wrap;margin-top:2px;margin-bottom:1px}
+.chip{font-size:8px;padding:1px 5px;border-radius:8px;font-weight:600;border:1px solid}
+.nn{color:#e08060;border-color:#e0806044;background:#50201008}
+.uq{color:#9f98e8;border-color:#6b65cc44;background:#30285008}
+.ck2{color:#3dbf8e;border-color:#1d9e7544;background:#08301808}
+.df{color:#606070;border-color:#35354008}
+.sep{height:1px;background:#222230;margin:3px 0}
+</style>
+</head>
+<body>
+
+<div id="hdr">
+  <div>
+    <h1>UAMS ERD — 대학 학사 업무 시스템</h1>
+    <p>Oracle 21c XE · 21개 테이블 · 드래그로 이동 · 휠로 확대/축소</p>
+  </div>
+  <div class="hbadges">
+    <span class="hb" style="color:#c8c0ff;border-color:#6b65cc60;background:#2a245020" onclick="jump('t-users')">인증</span>
+    <span class="hb" style="color:#3dbf8e;border-color:#1d9e7540;background:#0a302020" onclick="jump('t-colleges')">조직</span>
+    <span class="hb" style="color:#7ab8f5;border-color:#185fa540;background:#0a2a4020" onclick="jump('t-students')">학생</span>
+    <span class="hb" style="color:#f0997b;border-color:#99381d40;background:#3a180a20" onclick="jump('t-professors')">교수</span>
+    <span class="hb" style="color:#88cc66;border-color:#3b6d1140;background:#182a0820" onclick="jump('t-offices')">교직원</span>
+    <span class="hb" style="color:#e8a840;border-color:#85500b40;background:#301e0420" onclick="jump('t-courses')">강의</span>
+    <span class="hb" style="color:#7ab8f5;border-color:#185fa540;background:#0a1a3020" onclick="jump('t-enrollments')">수강</span>
+    <span class="hb" style="color:#88cc66;border-color:#3b6d1140;background:#102008" onclick="jump('t-grades')">성적</span>
+    <span class="hb" style="color:#d46088;border-color:#99355640;background:#3a102020" onclick="jump('t-notices')">공지</span>
+    <span class="hb" style="color:#f09870;border-color:#99381d40;background:#2a120820" onclick="jump('t-appr-tmpl')">결재</span>
+  </div>
+  <span id="tip">Ctrl+0 : 전체 보기</span>
+</div>
+
+<div id="wrap">
+  <div id="scene">
+    <svg id="lines" width="6000" height="5000">
+      <defs>
+        <marker id="mk-def" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+          <path d="M2 1L8 5L2 9" fill="none" stroke="#5a5a80" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </marker>
+      </defs>
+    </svg>
+
+<!-- ════════════════════════════════════════
+     USERS
+════════════════════════════════════════ -->
+<div class="tcard" id="t-users" style="left:818.625px;top:109.741px;border-color:#7f77dd;z-index:20">
+  <div class="thead" style="border-left:3px solid #7f77dd">
+    <div class="tname" style="color:#c8c0ff">USERS</div>
+    <div class="tdesc">통합 사용자 계정 — 학생·교수·교직원·관리자를 하나의 테이블로 관리, ROLE로 분화</div>
+  </div>
+  <div class="tcols">
+    <div class="col"><span class="ck">🔑</span><div class="ci"><span class="cn">ID</span><span class="ct">NUMBER(19)</span><div class="cn2">PK · IDENTITY 자동 채번</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">USERNAME</span><span class="ct">VARCHAR2(50)</span><div class="cn2">로그인 ID. 학번(20240001) / 교번(P20240001) / 사번(S20240001)</div><div class="chips"><span class="chip nn">NOT NULL</span><span class="chip uq">UNIQUE</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">PASSWORD_HASH</span><span class="ct">VARCHAR2(255)</span><div class="cn2">BCrypt 단방향 해시 — 원문 저장 금지</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">NAME</span><span class="ct">VARCHAR2(100)</span><div class="cn2">실명</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">EMAIL</span><span class="ct">VARCHAR2(255)</span><div class="cn2">이메일 — 알림·비밀번호 찾기에 사용</div><div class="chips"><span class="chip nn">NOT NULL</span><span class="chip uq">UNIQUE</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">PHONE</span><span class="ct">VARCHAR2(20)</span><div class="cn2">연락처 (선택)</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">ROLE</span><span class="ct">VARCHAR2(20)</span><div class="cn2">권한 구분 — ADMIN / STAFF / PROFESSOR / STUDENT</div><div class="chips"><span class="chip nn">NOT NULL</span><span class="chip ck2">CHECK</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">IS_ACTIVE</span><span class="ct">NUMBER(1)</span><div class="cn2">계정 활성 여부 — 0=비활성, 1=활성</div><div class="chips"><span class="chip nn">NOT NULL</span><span class="chip df">DEFAULT 1</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">LOGIN_FAIL_COUNT</span><span class="ct">NUMBER(3)</span><div class="cn2">연속 로그인 실패 횟수 — 5회 초과 시 LOCKED_AT 설정</div><div class="chips"><span class="chip df">DEFAULT 0</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">LOCKED_AT</span><span class="ct">TIMESTAMP TZ</span><div class="cn2">계정 잠금 일시 — NULL이면 정상 상태</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">LAST_LOGIN_AT</span><span class="ct">TIMESTAMP TZ</span><div class="cn2">마지막 로그인 일시</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">CREATED_BY / CREATED_AT</span><span class="ct">공통</span><div class="cn2">등록자 ID / 등록 일시</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">UPDATED_AT / DELETED_AT</span><span class="ct">공통</span><div class="cn2">수정 일시 / 논리 삭제 일시 (NULL=사용 중)</div></div></div>
+  </div>
+</div>
+
+<!-- REFRESH_TOKENS -->
+<div class="tcard" id="t-rt" style="left:809.164px;top:-315.75px;border-color:#534ab7;z-index:20">
+  <div class="thead" style="border-left:3px solid #7f77dd">
+    <div class="tname" style="color:#afa9ec">REFRESH_TOKENS</div>
+    <div class="tdesc">JWT Refresh Token 저장 — 로그아웃 시 REVOKED_AT 설정으로 무효화</div>
+  </div>
+  <div class="tcols">
+    <div class="col"><span class="ck">🔑</span><div class="ci"><span class="cn">ID</span><span class="ct">NUMBER(19)</span></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">USER_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">토큰 소유자 — ON DELETE CASCADE</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">TOKEN</span><span class="ct">VARCHAR2(512)</span><div class="cn2">Refresh Token 문자열 (7일 유효)</div><div class="chips"><span class="chip nn">NOT NULL</span><span class="chip uq">UNIQUE</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">EXPIRES_AT</span><span class="ct">TIMESTAMP TZ</span><div class="cn2">만료 일시 — 발급 후 7일</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">REVOKED_AT</span><span class="ct">TIMESTAMP TZ</span><div class="cn2">무효화 일시 — NULL이면 유효한 토큰</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">CREATED_AT</span><span class="ct">TIMESTAMP TZ</span></div></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     조직
+════════════════════════════════════════ -->
+<div class="tcard" id="t-colleges" style="left:-781.348px;top:593.993px;border-color:#0f6e56;z-index:20">
+  <div class="thead" style="border-left:3px solid #1d9e75">
+    <div class="tname" style="color:#5dcaa5">COLLEGES</div>
+    <div class="tdesc">단과대학 — 학과(DEPARTMENTS)의 상위 조직 단위</div>
+  </div>
+  <div class="tcols">
+    <div class="col"><span class="ck">🔑</span><div class="ci"><span class="cn">ID</span><span class="ct">NUMBER(19)</span></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">CODE</span><span class="ct">VARCHAR2(10)</span><div class="cn2">단과대학 코드 — ENG(공과대학), BUS(경영대학)</div><div class="chips"><span class="chip nn">NOT NULL</span><span class="chip uq">UNIQUE</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">NAME</span><span class="ct">VARCHAR2(100)</span><div class="cn2">단과대학 명칭</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">CREATED_AT / UPDATED_AT / DELETED_AT</span><span class="ct">공통</span></div></div>
+  </div>
+</div>
+
+<div class="tcard" id="t-departments" style="left:-480.914px;top:588.645px;border-color:#0f6e56;z-index:20">
+  <div class="thead" style="border-left:3px solid #1d9e75">
+    <div class="tname" style="color:#5dcaa5">DEPARTMENTS</div>
+    <div class="tdesc">학과 — 학생·교수·강의·교직원 직무가 모두 참조하는 핵심 조직 단위</div>
+  </div>
+  <div class="tcols">
+    <div class="col"><span class="ck">🔑</span><div class="ci"><span class="cn">ID</span><span class="ct">NUMBER(19)</span></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">COLLEGE_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">소속 단과대학</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">CODE</span><span class="ct">VARCHAR2(10)</span><div class="cn2">학과 코드 — CS, ME, BA, KOR</div><div class="chips"><span class="chip nn">NOT NULL</span><span class="chip uq">UNIQUE</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">NAME</span><span class="ct">VARCHAR2(100)</span><div class="cn2">학과 명칭</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">HEAD_PROFESSOR_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">학과장 — PROFESSORS 중 선임, NULL=미지정</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">CREATED_AT / UPDATED_AT / DELETED_AT</span><span class="ct">공통</span></div></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     학생
+════════════════════════════════════════ -->
+<div class="tcard" id="t-students" style="left:258.388px;top:1431.76px;border-color:#185fa5;z-index:20">
+  <div class="thead" style="border-left:3px solid #378add">
+    <div class="tname" style="color:#7ab8f5">STUDENTS</div>
+    <div class="tdesc">학생 상세 정보 — USERS 1:1, 학적 관련 속성 전담</div>
+  </div>
+  <div class="tcols">
+    <div class="col"><span class="ck">🔑</span><div class="ci"><span class="cn">ID</span><span class="ct">NUMBER(19)</span></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">USER_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">USERS 1:1 — UNIQUE+CASCADE</div><div class="chips"><span class="chip nn">NOT NULL</span><span class="chip uq">UNIQUE</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">STUDENT_NUMBER</span><span class="ct">VARCHAR2(20)</span><div class="cn2">학번 — 채번: YYYY+0001~9999 (예: 20240001)</div><div class="chips"><span class="chip nn">NOT NULL</span><span class="chip uq">UNIQUE</span></div></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">DEPARTMENT_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">소속 학과</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">GRADE</span><span class="ct">NUMBER(1)</span><div class="cn2">학년 — 1~4만 허용</div><div class="chips"><span class="chip nn">NOT NULL</span><span class="chip ck2">CHECK 1-4</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">SEMESTER</span><span class="ct">NUMBER(1)</span><div class="cn2">현재 학기 — 1 또는 2만 허용</div><div class="chips"><span class="chip ck2">CHECK 1-2</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">ADMISSION_YEAR</span><span class="ct">NUMBER(4)</span><div class="cn2">입학연도</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">STATUS</span><span class="ct">VARCHAR2(20)</span><div class="cn2">학적 상태 — ENROLLED / LEAVE / GRADUATED / EXPELLED</div><div class="chips"><span class="chip df">DEFAULT ENROLLED</span><span class="chip ck2">CHECK</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">ADDRESS</span><span class="ct">VARCHAR2(500)</span><div class="cn2">주소 — 학생 본인만 수정 가능</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">BIRTH_DATE</span><span class="ct">DATE</span><div class="cn2">생년월일</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">CREATED_AT / UPDATED_AT / DELETED_AT</span><span class="ct">공통</span></div></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     교수
+════════════════════════════════════════ -->
+<div class="tcard" id="t-professors" style="left:-208.775px;top:1444.29px;border-color:#993c1d;z-index:20">
+  <div class="thead" style="border-left:3px solid #d85a30">
+    <div class="tname" style="color:#f0997b">PROFESSORS</div>
+    <div class="tdesc">교수 상세 정보 — USERS 1:1, 강의 개설·성적 입력의 주체</div>
+  </div>
+  <div class="tcols">
+    <div class="col"><span class="ck">🔑</span><div class="ci"><span class="cn">ID</span><span class="ct">NUMBER(19)</span></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">USER_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">USERS 1:1 — UNIQUE+CASCADE</div><div class="chips"><span class="chip nn">NOT NULL</span><span class="chip uq">UNIQUE</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">PROFESSOR_NUMBER</span><span class="ct">VARCHAR2(20)</span><div class="cn2">교번 — 채번: P+YYYY+0001 (예: P20240001)</div><div class="chips"><span class="chip nn">NOT NULL</span><span class="chip uq">UNIQUE</span></div></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">DEPARTMENT_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">소속 학과</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">POSITION</span><span class="ct">VARCHAR2(50)</span><div class="cn2">직위 — 교수 / 부교수 / 조교수 / 강사</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">RESEARCH_FIELD</span><span class="ct">VARCHAR2(200)</span><div class="cn2">연구 분야</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">OFFICE_LOCATION</span><span class="ct">VARCHAR2(100)</span><div class="cn2">연구실 위치</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">OFFICE_PHONE</span><span class="ct">VARCHAR2(20)</span><div class="cn2">연구실 내선 번호</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">STATUS</span><span class="ct">VARCHAR2(20)</span><div class="cn2">재직 상태 — ACTIVE / LEAVE / RETIRED</div><div class="chips"><span class="chip df">DEFAULT ACTIVE</span><span class="chip ck2">CHECK</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">HIRE_DATE</span><span class="ct">DATE</span><div class="cn2">임용일</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">CREATED_AT / UPDATED_AT / DELETED_AT</span><span class="ct">공통</span></div></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     교직원 도메인 (5개)
+════════════════════════════════════════ -->
+<div class="tcard" id="t-offices" style="left:1252.9px;top:1655.14px;border-color:#3b6d11;z-index:20">
+  <div class="thead" style="border-left:3px solid #639922">
+    <div class="tname" style="color:#97c459">ADMINISTRATIVE_OFFICES</div>
+    <div class="tdesc">행정 부서(처·팀) — PARENT_ID 자기참조로 계층 구조 구현</div>
+  </div>
+  <div class="tcols">
+    <div class="col"><span class="ck">🔑</span><div class="ci"><span class="cn">ID</span><span class="ct">NUMBER(19)</span></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">CODE</span><span class="ct">VARCHAR2(20)</span><div class="cn2">부서 코드 — IT, ACADEMIC, GENERAL, LIBRARY</div><div class="chips"><span class="chip nn">NOT NULL</span><span class="chip uq">UNIQUE</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">NAME</span><span class="ct">VARCHAR2(100)</span><div class="cn2">부서명 (예: 전산실, 교학처)</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">PARENT_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">상위 부서 자기참조 — NULL이면 최상위 부서</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">OFFICE_TYPE</span><span class="ct">VARCHAR2(30)</span><div class="cn2">부서 유형 — ACADEMIC / GENERAL / IT / LIBRARY / FINANCE / ETC</div><div class="chips"><span class="chip nn">NOT NULL</span><span class="chip ck2">CHECK</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">LOCATION</span><span class="ct">VARCHAR2(200)</span><div class="cn2">부서 위치</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">PHONE</span><span class="ct">VARCHAR2(30)</span><div class="cn2">대표 전화</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">CREATED_AT / UPDATED_AT / DELETED_AT</span><span class="ct">공통</span></div></div>
+  </div>
+</div>
+
+<div class="tcard" id="t-job-pos" style="left:810.976px;top:1888.26px;border-color:#3b6d11;z-index:20">
+  <div class="thead" style="border-left:3px solid #639922">
+    <div class="tname" style="color:#97c459">JOB_POSITIONS</div>
+    <div class="tdesc">직위 코드 — GRADE_LEVEL로 서열 관리 (1=처장 ~ 9=인턴)</div>
+  </div>
+  <div class="tcols">
+    <div class="col"><span class="ck">🔑</span><div class="ci"><span class="cn">ID</span><span class="ct">NUMBER(19)</span></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">CODE</span><span class="ct">VARCHAR2(30)</span><div class="cn2">직위 코드 — DIRECTOR / TEAM_LEAD / SENIOR / OFFICER / INTERN</div><div class="chips"><span class="chip nn">NOT NULL</span><span class="chip uq">UNIQUE</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">NAME</span><span class="ct">VARCHAR2(100)</span><div class="cn2">직위명 — 처장 / 팀장 / 주임 / 담당자</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">GRADE_LEVEL</span><span class="ct">NUMBER(2)</span><div class="cn2">직급 레벨 — 1=최고~9=최하, 결재선 자동 구성에 활용</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">IS_ACTIVE</span><span class="ct">NUMBER(1)</span><div class="cn2">사용 여부 — 0=폐지된 직위</div><div class="chips"><span class="chip df">DEFAULT 1</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">CREATED_AT / UPDATED_AT</span><span class="ct">공통</span></div></div>
+  </div>
+</div>
+
+<div class="tcard" id="t-staff" style="left:1260.19px;top:989.95px;border-color:#3b6d11;z-index:20">
+  <div class="thead" style="border-left:3px solid #639922">
+    <div class="tname" style="color:#97c459">STAFF_MEMBERS</div>
+    <div class="tdesc">교직원 상세 정보 — USERS 1:1, OFFICE_ID=주 소속 부서</div>
+  </div>
+  <div class="tcols">
+    <div class="col"><span class="ck">🔑</span><div class="ci"><span class="cn">ID</span><span class="ct">NUMBER(19)</span></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">USER_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">USERS 1:1 — UNIQUE+CASCADE</div><div class="chips"><span class="chip nn">NOT NULL</span><span class="chip uq">UNIQUE</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">STAFF_NUMBER</span><span class="ct">VARCHAR2(20)</span><div class="cn2">사번 — 채번: S+YYYY+0001 (예: S20240001)</div><div class="chips"><span class="chip nn">NOT NULL</span><span class="chip uq">UNIQUE</span></div></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">OFFICE_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">주 소속 행정 부서 — 발령 처리 시 이 값 변경</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">EMPLOYMENT_TYPE</span><span class="ct">VARCHAR2(20)</span><div class="cn2">고용 형태 — FULL_TIME / PART_TIME / INTERN</div><div class="chips"><span class="chip df">DEFAULT FULL_TIME</span><span class="chip ck2">CHECK</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">STATUS</span><span class="ct">VARCHAR2(20)</span><div class="cn2">재직 상태 — ACTIVE / LEAVE / RETIRED / RESIGNED</div><div class="chips"><span class="chip df">DEFAULT ACTIVE</span><span class="chip ck2">CHECK</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">HIRE_DATE</span><span class="ct">DATE</span><div class="cn2">임용일</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">RETIRE_DATE</span><span class="ct">DATE</span><div class="cn2">퇴직일 (NULL=재직 중)</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">OFFICE_PHONE / OFFICE_LOCATION</span><span class="ct">VARCHAR2</span><div class="cn2">업무 연락처·근무 위치</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">EMERGENCY_CONTACT</span><span class="ct">VARCHAR2(100)</span><div class="cn2">비상 연락처</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">CREATED_AT / UPDATED_AT / DELETED_AT</span><span class="ct">공통</span></div></div>
+  </div>
+</div>
+
+<div class="tcard" id="t-staff-jobs" style="left:812.076px;top:1190.45px;border-color:#3b6d11;z-index:20">
+  <div class="thead" style="border-left:3px solid #639922">
+    <div class="tname" style="color:#97c459">STAFF_JOBS</div>
+    <div class="tdesc">교직원 직무 — 1인 복수·겸직 지원, IS_PRIMARY=1이 주 직무</div>
+  </div>
+  <div class="tcols">
+    <div class="col"><span class="ck">🔑</span><div class="ci"><span class="cn">ID</span><span class="ct">NUMBER(19)</span></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">STAFF_MEMBER_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">직무 수행 교직원 — ON DELETE CASCADE</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">OFFICE_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">직무 소속 부서 (주 소속과 다를 수 있음)</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">POSITION_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">직위 코드 참조</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">DEPARTMENT_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">학과 배속 시 사용 — 교학처 직원이 특정 학과 담당</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">JOB_TITLE</span><span class="ct">VARCHAR2(200)</span><div class="cn2">직무명 (예: 컴퓨터공학과 학사 담당)</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">JOB_CATEGORY</span><span class="ct">VARCHAR2(30)</span><div class="cn2">분류 — ACADEMIC / HR / FINANCE / IT / LIBRARY / ETC</div><div class="chips"><span class="chip nn">NOT NULL</span><span class="chip ck2">CHECK</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">IS_PRIMARY</span><span class="ct">NUMBER(1)</span><div class="cn2">주 직무 여부 — 1=주 직무, 0=겸직</div><div class="chips"><span class="chip df">DEFAULT 1</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">START_DATE</span><span class="ct">DATE</span><div class="cn2">직무 시작일</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">END_DATE</span><span class="ct">DATE</span><div class="cn2">직무 종료일 — NULL이면 현재 수행 중</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">DESCRIPTION</span><span class="ct">VARCHAR2(1000)</span><div class="cn2">직무 상세 설명</div></div></div>
+  </div>
+</div>
+
+<div class="tcard" id="t-assign" style="left:1638.29px;top:972.375px;border-color:#27500a;z-index:20">
+  <div class="thead" style="border-left:3px solid #639922">
+    <div class="tname" style="color:#88cc66">STAFF_ASSIGNMENT_HISTORY</div>
+    <div class="tdesc">교직원 발령 이력 — 신규채용·전보·승진·퇴직 등 모든 인사 이동 영구 기록</div>
+  </div>
+  <div class="tcols">
+    <div class="col"><span class="ck">🔑</span><div class="ci"><span class="cn">ID</span><span class="ct">NUMBER(19)</span></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">STAFF_MEMBER_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">발령 대상 교직원</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">FROM_OFFICE_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">이전 부서 — 신규채용 시 NULL</div></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">TO_OFFICE_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">발령 부서</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">FROM_POSITION_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">이전 직위</div></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">TO_POSITION_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">발령 직위</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">ASSIGNMENT_TYPE</span><span class="ct">VARCHAR2(30)</span><div class="cn2">발령 유형 — HIRE / TRANSFER / PROMOTION / DEMOTION / RETIRE / RESIGN</div><div class="chips"><span class="chip nn">NOT NULL</span><span class="chip ck2">CHECK</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">EFFECTIVE_DATE</span><span class="ct">DATE</span><div class="cn2">발령 발효일</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">REASON</span><span class="ct">VARCHAR2(500)</span><div class="cn2">발령 사유</div></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">PROCESSED_BY</span><span class="ct">NUMBER(19)</span><div class="cn2">처리자 (ADMIN 계정)</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">CREATED_AT</span><span class="ct">TIMESTAMP TZ</span></div></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     강의
+════════════════════════════════════════ -->
+<div class="tcard" id="t-courses" style="left:-69.8741px;top:-526.739px;border-color:#854f0b;z-index:20">
+  <div class="thead" style="border-left:3px solid #ba7517">
+    <div class="tname" style="color:#ef9f27">COURSES</div>
+    <div class="tdesc">강의(교과목) — VERSION_NO(@Version)로 낙관적 락, 수강신청 동시 접근 정합성 보장</div>
+  </div>
+  <div class="tcols">
+    <div class="col"><span class="ck">🔑</span><div class="ci"><span class="cn">ID</span><span class="ct">NUMBER(19)</span></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">COURSE_CODE</span><span class="ct">VARCHAR2(20)</span><div class="cn2">학수번호 — 채번: 학과코드+연도+일련 (예: CS20240001)</div><div class="chips"><span class="chip nn">NOT NULL</span><span class="chip uq">UNIQUE</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">NAME</span><span class="ct">VARCHAR2(200)</span><div class="cn2">강의명</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">DEPARTMENT_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">개설 학과</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">PROFESSOR_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">담당 교수</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">CREDIT</span><span class="ct">NUMBER(1)</span><div class="cn2">학점 수 — 1~6만 허용</div><div class="chips"><span class="chip nn">NOT NULL</span><span class="chip ck2">CHECK 1-6</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">YEAR / SEMESTER</span><span class="ct">NUMBER</span><div class="cn2">개설 연도·학기 (SEMESTER: 1 또는 2)</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">MAX_ENROLLMENT</span><span class="ct">NUMBER(5)</span><div class="cn2">수강 정원 — CURRENT ≤ MAX CHECK 제약</div><div class="chips"><span class="chip df">DEFAULT 30</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">CURRENT_ENROLLMENT</span><span class="ct">NUMBER(5)</span><div class="cn2">현재 수강 인원 캐시 — VERSION_NO와 함께 낙관적 락 대상</div><div class="chips"><span class="chip df">DEFAULT 0</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">VERSION_NO</span><span class="ct">NUMBER(10)</span><div class="cn2">JPA @Version 낙관적 락 — 동시 수강신청 충돌 감지</div><div class="chips"><span class="chip df">DEFAULT 0</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">COURSE_TYPE</span><span class="ct">VARCHAR2(30)</span><div class="cn2">이수구분 — MAJOR / MAJOR_ELECTIVE / GENERAL / GENERAL_REQUIRED</div><div class="chips"><span class="chip ck2">CHECK</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">CLASSROOM</span><span class="ct">VARCHAR2(100)</span><div class="cn2">강의실</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">STATUS</span><span class="ct">VARCHAR2(20)</span><div class="cn2">강의 상태 — OPEN(개설) / CLOSED(폐강) / ENDED(종강)</div><div class="chips"><span class="chip df">DEFAULT OPEN</span><span class="chip ck2">CHECK</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">DESCRIPTION</span><span class="ct">CLOB</span><div class="cn2">강의 소개</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">CREATED_AT / UPDATED_AT / DELETED_AT</span><span class="ct">공통</span></div></div>
+  </div>
+</div>
+
+<div class="tcard" id="t-schedules" style="left:-410.154px;top:-527.481px;border-color:#633806;z-index:20">
+  <div class="thead" style="border-left:3px solid #ba7517">
+    <div class="tname" style="color:#fac775">COURSE_SCHEDULES</div>
+    <div class="tdesc">강의 시간표 — 요일+교시 기반, 1개 강의에 복수 행 가능, 시간표 충돌 검증 쿼리 대상</div>
+  </div>
+  <div class="tcols">
+    <div class="col"><span class="ck">🔑</span><div class="ci"><span class="cn">ID</span><span class="ct">NUMBER(19)</span></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">COURSE_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">소속 강의 — ON DELETE CASCADE</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">DAY_OF_WEEK</span><span class="ct">NUMBER(1)</span><div class="cn2">요일 — 1=월, 2=화, 3=수, 4=목, 5=금, 6=토</div><div class="chips"><span class="chip nn">NOT NULL</span><span class="chip ck2">CHECK 1-6</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">PERIOD_START</span><span class="ct">NUMBER(2)</span><div class="cn2">시작 교시 — 1~15 (START ≤ END 제약)</div><div class="chips"><span class="chip nn">NOT NULL</span><span class="chip ck2">CHECK 1-15</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">PERIOD_END</span><span class="ct">NUMBER(2)</span><div class="cn2">종료 교시 — 1~15</div><div class="chips"><span class="chip nn">NOT NULL</span><span class="chip ck2">CHECK 1-15</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">CLASSROOM</span><span class="ct">VARCHAR2(100)</span><div class="cn2">강의실 (시간대별 다른 강의실 가능)</div></div></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     수강신청
+════════════════════════════════════════ -->
+<div class="tcard" id="t-enrollments" style="left:349.462px;top:-18.7884px;border-color:#0c447c;z-index:20">
+  <div class="thead" style="border-left:3px solid #378add">
+    <div class="tname" style="color:#85b7eb">ENROLLMENTS</div>
+    <div class="tdesc">수강신청 — UNIQUE(STUDENT+COURSE+YEAR+SEM)으로 중복 방지, WITHDRAWN 상태로 논리 취소</div>
+  </div>
+  <div class="tcols">
+    <div class="col"><span class="ck">🔑</span><div class="ci"><span class="cn">ID</span><span class="ct">NUMBER(19)</span></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">STUDENT_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">수강 신청 학생</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">COURSE_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">신청 강의</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">YEAR</span><span class="ct">NUMBER(4)</span><div class="cn2">신청 연도</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">SEMESTER</span><span class="ct">NUMBER(1)</span><div class="cn2">신청 학기 — 1 또는 2</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">STATUS</span><span class="ct">VARCHAR2(20)</span><div class="cn2">수강 상태 — ENROLLED / WITHDRAWN / COMPLETED</div><div class="chips"><span class="chip df">DEFAULT ENROLLED</span><span class="chip ck2">CHECK</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">ENROLLED_AT</span><span class="ct">TIMESTAMP TZ</span><div class="cn2">신청 일시</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">WITHDRAWN_AT</span><span class="ct">TIMESTAMP TZ</span><div class="cn2">취소 일시</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">UK: STUDENT+COURSE+YEAR+SEM</span><span class="ct"></span><div class="cn2">동일 학기 중복 신청 방지 복합 UNIQUE 제약</div><div class="chips"><span class="chip uq">UNIQUE</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">CREATED_AT / UPDATED_AT</span><span class="ct">공통</span></div></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     성적
+════════════════════════════════════════ -->
+<div class="tcard" id="t-grades" style="left:352.792px;top:-695.296px;border-color:#27500a;z-index:20">
+  <div class="thead" style="border-left:3px solid #639922">
+    <div class="tname" style="color:#c0dd97">GRADES</div>
+    <div class="tdesc">성적 — ENROLLMENT 1:1, TEMP→SUBMITTED(교수)→CONFIRMED(교직원), P/F 과목은 GPA 제외</div>
+  </div>
+  <div class="tcols">
+    <div class="col"><span class="ck">🔑</span><div class="ci"><span class="cn">ID</span><span class="ct">NUMBER(19)</span></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">ENROLLMENT_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">수강신청 1:1 — UNIQUE 제약으로 중복 성적 방지</div><div class="chips"><span class="chip nn">NOT NULL</span><span class="chip uq">UNIQUE</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">LETTER_GRADE</span><span class="ct">VARCHAR2(5)</span><div class="cn2">등급 — A+ / A / B+ / B / C+ / C / D+ / D / F / P / NP</div><div class="chips"><span class="chip ck2">CHECK</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">SCORE</span><span class="ct">NUMBER(5,2)</span><div class="cn2">원점수 (선택 입력)</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">GRADE_POINTS</span><span class="ct">NUMBER(3,2)</span><div class="cn2">환산 평점 — A+=4.5, A=4.0, B+=3.5 ... F=0.0, GPA 계산에 사용</div><div class="chips"><span class="chip ck2">CHECK 0.0-4.5</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">IS_PASS_FAIL</span><span class="ct">NUMBER(1)</span><div class="cn2">P/F 과목 여부 — 1이면 GPA 산정 제외</div><div class="chips"><span class="chip df">DEFAULT 0</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">STATUS</span><span class="ct">VARCHAR2(20)</span><div class="cn2">성적 상태 — TEMP(임시) → SUBMITTED(제출) → CONFIRMED(확정). 확정 후 수정 불가</div><div class="chips"><span class="chip df">DEFAULT TEMP</span><span class="chip ck2">CHECK</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">SUBMITTED_AT</span><span class="ct">TIMESTAMP TZ</span><div class="cn2">교수가 제출한 일시</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">CONFIRMED_AT</span><span class="ct">TIMESTAMP TZ</span><div class="cn2">교직원이 확정한 일시</div></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">CONFIRMED_BY</span><span class="ct">NUMBER(19)</span><div class="cn2">성적 확정 처리자 — STAFF 계정</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">REMARK</span><span class="ct">VARCHAR2(1000)</span><div class="cn2">비고 (이의신청 내용 등)</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">CREATED_AT / UPDATED_AT</span><span class="ct">공통</span></div></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     공지사항
+════════════════════════════════════════ -->
+<div class="tcard" id="t-notices" style="left:1631.67px;top:-643.0px;border-color:#72243e;z-index:20">
+  <div class="thead" style="border-left:3px solid #d4537e">
+    <div class="tname" style="color:#ed93b1">NOTICES</div>
+    <div class="tdesc">공지사항 — DEPT/COURSE=NULL이면 전체 공지, IS_PINNED=1이면 목록 최상단 표시</div>
+  </div>
+  <div class="tcols">
+    <div class="col"><span class="ck">🔑</span><div class="ci"><span class="cn">ID</span><span class="ct">NUMBER(19)</span></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">TITLE</span><span class="ct">VARCHAR2(500)</span><div class="cn2">공지 제목</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">CONTENT</span><span class="ct">CLOB</span><div class="cn2">공지 본문 (대용량 지원)</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">CATEGORY</span><span class="ct">VARCHAR2(30)</span><div class="cn2">분류 — ACADEMIC(학사) / DEPARTMENT(학과) / COURSE(강의) / GENERAL(일반)</div><div class="chips"><span class="chip df">DEFAULT GENERAL</span><span class="chip ck2">CHECK</span></div></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">AUTHOR_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">작성자 — ADMIN / STAFF / PROFESSOR 가능</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">DEPARTMENT_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">학과 공지 대상 — NULL이면 전체 공지</div></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">COURSE_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">강의 공지 대상 — NULL이면 해당 없음</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">IS_PINNED</span><span class="ct">NUMBER(1)</span><div class="cn2">상단 고정 여부 — 1이면 목록 최상단 표시</div><div class="chips"><span class="chip df">DEFAULT 0</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">VIEW_COUNT</span><span class="ct">NUMBER(10)</span><div class="cn2">조회 수 — 상세 페이지 진입마다 +1</div><div class="chips"><span class="chip df">DEFAULT 0</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">CREATED_AT / UPDATED_AT / DELETED_AT</span><span class="ct">공통</span></div></div>
+  </div>
+</div>
+
+<div class="tcard" id="t-notice-att" style="left:1286.51px;top:-637.345px;border-color:#4b1528;z-index:20">
+  <div class="thead" style="border-left:3px solid #d4537e">
+    <div class="tname" style="color:#f4c0d1">NOTICE_ATTACHMENTS</div>
+    <div class="tdesc">공지사항 첨부파일 — 실제 파일은 서버 스토리지, FILE_PATH에 경로만 기록</div>
+  </div>
+  <div class="tcols">
+    <div class="col"><span class="ck">🔑</span><div class="ci"><span class="cn">ID</span><span class="ct">NUMBER(19)</span></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">NOTICE_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">소속 공지 — ON DELETE CASCADE, 공지 삭제 시 첨부 자동 제거</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">FILE_NAME</span><span class="ct">VARCHAR2(255)</span><div class="cn2">원본 파일명 (사용자에게 표시)</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">FILE_PATH</span><span class="ct">VARCHAR2(1000)</span><div class="cn2">서버 저장 경로 (UUID 기반 rename 권장)</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">FILE_SIZE</span><span class="ct">NUMBER(15)</span><div class="cn2">파일 크기 (byte 단위)</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">MIME_TYPE</span><span class="ct">VARCHAR2(100)</span><div class="cn2">MIME 타입 (예: application/pdf, image/png)</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">CREATED_AT</span><span class="ct">TIMESTAMP TZ</span></div></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════
+     전자결재 (4개)
+════════════════════════════════════════ -->
+<div class="tcard" id="t-appr-tmpl" style="left:2417.21px;top:-139.046px;border-color:#712b13;z-index:20">
+  <div class="thead" style="border-left:3px solid #d85a30">
+    <div class="tname" style="color:#f0997b">APPROVAL_TEMPLATES</div>
+    <div class="tdesc">결재 양식 — FIELDS_SCHEMA(JSON/CLOB)에 필드 구조 저장, 프론트 동적 렌더링에 사용</div>
+  </div>
+  <div class="tcols">
+    <div class="col"><span class="ck">🔑</span><div class="ci"><span class="cn">ID</span><span class="ct">NUMBER(19)</span></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">CODE</span><span class="ct">VARCHAR2(50)</span><div class="cn2">양식 코드 — LEAVE_OF_ABSENCE / REINSTATEMENT / COURSE_CHANGE / GRADE_APPEAL</div><div class="chips"><span class="chip nn">NOT NULL</span><span class="chip uq">UNIQUE</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">NAME</span><span class="ct">VARCHAR2(200)</span><div class="cn2">양식명 (예: 휴학원, 복학원, 수강정정신청)</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">FIELDS_SCHEMA</span><span class="ct">CLOB (IS JSON)</span><div class="cn2">양식 필드 JSON 스키마 — Oracle IS JSON 제약으로 유효성 검증</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">IS_ACTIVE</span><span class="ct">NUMBER(1)</span><div class="cn2">사용 여부 — 0이면 기안 양식 선택에서 숨김</div><div class="chips"><span class="chip df">DEFAULT 1</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">DESCRIPTION</span><span class="ct">VARCHAR2(1000)</span><div class="cn2">양식 설명</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">CREATED_AT / UPDATED_AT</span><span class="ct">공통</span></div></div>
+  </div>
+</div>
+
+<div class="tcard" id="t-appr-doc" style="left:2067.17px;top:-213.705px;border-color:#712b13;z-index:20">
+  <div class="thead" style="border-left:3px solid #d85a30">
+    <div class="tname" style="color:#f0997b">APPROVAL_DOCUMENTS</div>
+    <div class="tdesc">결재 문서(기안) — FORM_DATA(JSON)에 입력값 저장, CURRENT_STEP으로 진행 단계 추적</div>
+  </div>
+  <div class="tcols">
+    <div class="col"><span class="ck">🔑</span><div class="ci"><span class="cn">ID</span><span class="ct">NUMBER(19)</span></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">TEMPLATE_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">사용한 결재 양식</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">TITLE</span><span class="ct">VARCHAR2(500)</span><div class="cn2">문서 제목</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">DRAFTER_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">기안자 — 학생·교수·교직원 모두 기안 가능</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">CONTENT</span><span class="ct">CLOB</span><div class="cn2">결재 본문</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">FORM_DATA</span><span class="ct">CLOB (IS JSON)</span><div class="cn2">양식 입력값 JSON (예: {"leaveType":"군입대"})</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">STATUS</span><span class="ct">VARCHAR2(20)</span><div class="cn2">결재 상태 — DRAFT → IN_PROGRESS → APPROVED 또는 REJECTED</div><div class="chips"><span class="chip df">DEFAULT DRAFT</span><span class="chip ck2">CHECK</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">CURRENT_STEP</span><span class="ct">NUMBER(3)</span><div class="cn2">현재 결재 단계 — 1부터 시작, 마지막 STEP 승인 완료 시 APPROVED</div><div class="chips"><span class="chip df">DEFAULT 1</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">SUBMITTED_AT</span><span class="ct">TIMESTAMP TZ</span><div class="cn2">기안 제출 일시</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">COMPLETED_AT</span><span class="ct">TIMESTAMP TZ</span><div class="cn2">완료(승인·반려) 일시</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">CREATED_AT / UPDATED_AT / DELETED_AT</span><span class="ct">공통</span></div></div>
+  </div>
+</div>
+
+<div class="tcard" id="t-appr-line" style="left:2066.03px;top:584.61px;border-color:#4a1b0c;z-index:20">
+  <div class="thead" style="border-left:3px solid #d85a30">
+    <div class="tname" style="color:#f5c4b3">APPROVAL_LINES</div>
+    <div class="tdesc">결재 라인(단계별 결재자) — UNIQUE(DOCUMENT+STEP)으로 단계 중복 방지, 반려 시 후속 단계 즉시 건너뜀</div>
+  </div>
+  <div class="tcols">
+    <div class="col"><span class="ck">🔑</span><div class="ci"><span class="cn">ID</span><span class="ct">NUMBER(19)</span></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">DOCUMENT_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">소속 결재 문서 — ON DELETE CASCADE</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">STEP</span><span class="ct">NUMBER(3)</span><div class="cn2">결재 순서 — 1부터 시작, UNIQUE(DOCUMENT_ID, STEP)</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">APPROVER_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">해당 단계 결재자 (USERS 참조)</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">ROLE_LABEL</span><span class="ct">VARCHAR2(100)</span><div class="cn2">결재자 역할 표시명 (예: 지도교수, 교학처장)</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">ACTION</span><span class="ct">VARCHAR2(20)</span><div class="cn2">결재 결과 — APPROVED / REJECTED / NULL(대기 중)</div><div class="chips"><span class="chip ck2">CHECK</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">COMMENT</span><span class="ct">VARCHAR2(2000)</span><div class="cn2">결재 의견·반려 사유</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">ACTION_AT</span><span class="ct">TIMESTAMP TZ</span><div class="cn2">결재 처리 일시</div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">CREATED_AT</span><span class="ct">TIMESTAMP TZ</span></div></div>
+  </div>
+</div>
+
+<div class="tcard" id="t-appr-noti" style="left:1771.88px;top:338.445px;border-color:#4a1b0c;z-index:20">
+  <div class="thead" style="border-left:3px solid #d85a30">
+    <div class="tname" style="color:#f5c4b3">APPROVAL_NOTIFICATIONS</div>
+    <div class="tdesc">결재 알림 — 상태 변경 시 관련자에게 레코드 생성, IS_READ=0 건수 = 미확인 알림 배지 수</div>
+  </div>
+  <div class="tcols">
+    <div class="col"><span class="ck">🔑</span><div class="ci"><span class="cn">ID</span><span class="ct">NUMBER(19)</span></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">USER_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">알림 수신자</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="fkl">FK</span><div class="ci"><span class="cn">DOCUMENT_ID</span><span class="ct">NUMBER(19)</span><div class="cn2">관련 결재 문서</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">MESSAGE</span><span class="ct">VARCHAR2(500)</span><div class="cn2">알림 메시지 (예: 결재 문서가 승인되었습니다.)</div><div class="chips"><span class="chip nn">NOT NULL</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">IS_READ</span><span class="ct">NUMBER(1)</span><div class="cn2">읽음 여부 — 0=미확인, 1=읽음</div><div class="chips"><span class="chip df">DEFAULT 0</span></div></div></div>
+    <div class="col"><span class="ck"></span><div class="ci"><span class="cn">CREATED_AT</span><span class="ct">TIMESTAMP TZ</span></div></div>
+  </div>
+</div>
+
+  </div><!-- /scene -->
+</div><!-- /wrap -->
+
+<script>
+// ═══════════════════════════════════════════
+// 관계선 정의
+// ═══════════════════════════════════════════
+const RELS = [
+  // 인증
+  { f:'t-users', t:'t-rt',         label:'1:N', c:'#9f98e8' },
+  { f:'t-users', t:'t-students',   label:'1:1', c:'#5a9fe8' },
+  { f:'t-users', t:'t-professors', label:'1:1', c:'#e06845' },
+  { f:'t-users', t:'t-staff',      label:'1:1', c:'#7ec455' },
+  // 조직
+  { f:'t-colleges',    t:'t-departments', label:'1:N', c:'#3dbf8e' },
+  { f:'t-departments', t:'t-students',    label:'1:N', c:'#5a9fe8' },
+  { f:'t-departments', t:'t-professors',  label:'1:N', c:'#e06845' },
+  { f:'t-departments', t:'t-courses',     label:'1:N', c:'#e8a840' },
+  // 강의
+  { f:'t-professors',  t:'t-courses',     label:'1:N', c:'#e8a840' },
+  { f:'t-courses',     t:'t-schedules',   label:'1:N', c:'#fac775' },
+  { f:'t-courses',     t:'t-enrollments', label:'1:N', c:'#85b7eb' },
+  // 수강·성적
+  { f:'t-students',    t:'t-enrollments', label:'1:N', c:'#85b7eb' },
+  { f:'t-enrollments', t:'t-grades',      label:'1:1', c:'#c0dd97' },
+  // 공지사항
+  { f:'t-notices',     t:'t-notice-att',  label:'1:N', c:'#ed93b1' },
+  // 교직원
+  { f:'t-offices',     t:'t-staff',       label:'1:N', c:'#7ec455' },
+  { f:'t-offices',     t:'t-staff-jobs',  label:'1:N', c:'#88cc66' },
+  { f:'t-job-pos',     t:'t-staff-jobs',  label:'1:N', c:'#88cc66' },
+  { f:'t-staff',       t:'t-staff-jobs',  label:'1:N', c:'#97c459' },
+  { f:'t-staff',       t:'t-assign',      label:'1:N', c:'#88cc66' },
+  { f:'t-departments', t:'t-staff-jobs',  label:'1:N', c:'#7ec455' },
+  // 전자결재
+  { f:'t-appr-tmpl',   t:'t-appr-doc',   label:'1:N', c:'#f0997b' },
+  { f:'t-appr-doc',    t:'t-appr-line',  label:'1:N', c:'#f0997b' },
+  { f:'t-appr-doc',    t:'t-appr-noti',  label:'1:N', c:'#f5c4b3' },
+  // users → 결재·공지
+  { f:'t-users', t:'t-notices',   label:'1:N', c:'#d46088', dash:true },
+  { f:'t-users', t:'t-appr-doc',  label:'1:N', c:'#e06845', dash:true },
+  { f:'t-users', t:'t-appr-line', label:'N:1', c:'#f5c4b3', dash:true },
+  { f:'t-users', t:'t-appr-noti', label:'1:N', c:'#f5c4b3', dash:true },
+];
+
+// ═══════════════════════════════════════════
+// 캔버스 팬·줌
+// ═══════════════════════════════════════════
+const wrap  = document.getElementById('wrap');
+const scene = document.getElementById('scene');
+let tx=0, ty=0, scale=0.290085;
+let panning=false, px=0, py=0;
+
+function applyTx(){
+  scene.style.transform=`translate(${tx}px,${ty}px) scale(${scale})`;
+}
+// 초기 위치 (약간 중앙으로)
+tx = 779.129; ty = 289.96;
+applyTx();
+
+wrap.addEventListener('mousedown', e=>{
+  if(e.target.closest('.tcard')) return;
+  panning=true; px=e.clientX-tx; py=e.clientY-ty;
+  wrap.classList.add('panning');
+});
+document.addEventListener('mousemove', e=>{
+  if(panning){ tx=e.clientX-px; ty=e.clientY-py; applyTx(); }
+});
+document.addEventListener('mouseup', ()=>{ panning=false; wrap.classList.remove('panning'); });
+
+wrap.addEventListener('wheel', e=>{
+  e.preventDefault();
+  const rect=wrap.getBoundingClientRect();
+  const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+  const prev=scale;
+  scale=Math.min(1.4, Math.max(0.15, scale*(e.deltaY<0?1.1:0.9)));
+  tx-=(mx-tx)*(scale/prev-1);
+  ty-=(my-ty)*(scale/prev-1);
+  applyTx();
+},{passive:false});
+
+document.addEventListener('keydown', e=>{
+  if(e.ctrlKey && e.key==='0'){
+    e.preventDefault(); tx=779.129; ty=289.96; scale=0.290085; applyTx();
+  }
+});
+
+// ═══════════════════════════════════════════
+// 드래그
+// ═══════════════════════════════════════════
+let drag=null, dox=0, doy=0;
+document.querySelectorAll('.tcard').forEach(card=>{
+  card.addEventListener('mousedown', e=>{
+    drag=card;
+    dox=e.clientX/scale - parseInt(card.style.left);
+    doy=e.clientY/scale - parseInt(card.style.top);
+    card.classList.add('dragging');
+    card.style.zIndex=500;
+    e.stopPropagation(); e.preventDefault();
+  });
+});
+document.addEventListener('mousemove', e=>{
+  if(!drag) return;
+  drag.style.left=(e.clientX/scale-dox)+'px';
+  drag.style.top =(e.clientY/scale-doy)+'px';
+  drawLines();
+});
+document.addEventListener('mouseup', ()=>{
+  if(drag){ drag.classList.remove('dragging'); drag.style.zIndex=20; drag=null; }
+});
+
+// ═══════════════════════════════════════════
+// 관계선 그리기
+// ═══════════════════════════════════════════
+function ctr(id){
+  const el=document.getElementById(id);
+  const l=parseInt(el.style.left), t=parseInt(el.style.top);
+  return { x:l+el.offsetWidth/2, y:t+el.offsetHeight/2,
+           w:el.offsetWidth, h:el.offsetHeight, l, t };
+}
+function edge(id, tx2, ty2){
+  const c=ctr(id);
+  const dx=tx2-c.x, dy=ty2-c.y;
+  const sx=dx!==0?(c.w/2)/Math.abs(dx):1e9;
+  const sy=dy!==0?(c.h/2)/Math.abs(dy):1e9;
+  const s=Math.min(sx,sy);
+  return { x:c.x+dx*s, y:c.y+dy*s };
+}
+
+// 색에서 마커 ID 생성
+const mkCache={};
+function getMarker(color, svg){
+  const id='mk-'+color.replace('#','');
+  if(!mkCache[id]){
+    const defs=svg.querySelector('defs');
+    const mk=document.createElementNS('http://www.w3.org/2000/svg','marker');
+    mk.setAttribute('id',id);
+    mk.setAttribute('viewBox','0 0 10 10');
+    mk.setAttribute('refX','9'); mk.setAttribute('refY','5');
+    mk.setAttribute('markerWidth','5'); mk.setAttribute('markerHeight','5');
+    mk.setAttribute('orient','auto');
+    const p=document.createElementNS('http://www.w3.org/2000/svg','path');
+    p.setAttribute('d','M2 1L8 5L2 9');
+    p.setAttribute('fill','none');
+    p.setAttribute('stroke',color);
+    p.setAttribute('stroke-width','1.8');
+    p.setAttribute('stroke-linecap','round');
+    p.setAttribute('stroke-linejoin','round');
+    mk.appendChild(p); defs.appendChild(mk);
+    mkCache[id]=true;
+  }
+  return id;
+}
+
+function drawLines(){
+  const svg=document.getElementById('lines');
+  svg.querySelectorAll('.rl').forEach(e=>e.remove());
+
+  RELS.forEach(rel=>{
+    const c1=ctr(rel.f), c2=ctr(rel.t);
+    const p1=edge(rel.f, c2.x, c2.y);
+    const p2=edge(rel.t, c1.x, c1.y);
+    const mid={x:(p1.x+p2.x)/2, y:(p1.y+p2.y)/2};
+
+    // 살짝 휘는 베지어 제어점
+    const dx=p2.x-p1.x, dy=p2.y-p1.y;
+    const len=Math.sqrt(dx*dx+dy*dy);
+    const bend=Math.min(len*0.15, 60);
+    const nx=-dy/len, ny=dx/len; // 법선 방향
+    const cx=mid.x+nx*bend, cy=mid.y+ny*bend;
+
+    const mkId=getMarker(rel.c, svg);
+
+    const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d',`M ${p1.x} ${p1.y} Q ${cx} ${cy} ${p2.x} ${p2.y}`);
+    path.setAttribute('fill','none');
+    path.setAttribute('stroke',rel.c);
+    path.setAttribute('stroke-width','1.3');
+    path.setAttribute('stroke-opacity','0.55');
+    if(rel.dash) path.setAttribute('stroke-dasharray','6 4');
+    path.setAttribute('marker-end',`url(#${mkId})`);
+    path.classList.add('rl');
+    svg.appendChild(path);
+
+    // 레이블 배경
+    const rw=30, rh=14;
+    const rb=document.createElementNS('http://www.w3.org/2000/svg','rect');
+    rb.setAttribute('x',cx-rw/2); rb.setAttribute('y',cy-rh/2);
+    rb.setAttribute('width',rw); rb.setAttribute('height',rh);
+    rb.setAttribute('rx','4');
+    rb.setAttribute('fill','#181820');
+    rb.setAttribute('stroke',rel.c); rb.setAttribute('stroke-width','0.7');
+    rb.setAttribute('stroke-opacity','0.5');
+    rb.classList.add('rl');
+    svg.appendChild(rb);
+
+    const txt=document.createElementNS('http://www.w3.org/2000/svg','text');
+    txt.setAttribute('x',cx); txt.setAttribute('y',cy+4);
+    txt.setAttribute('text-anchor','middle');
+    txt.setAttribute('fill',rel.c);
+    txt.setAttribute('font-size','9');
+    txt.setAttribute('font-family','Segoe UI,sans-serif');
+    txt.setAttribute('font-weight','600');
+    txt.textContent=rel.label;
+    txt.classList.add('rl');
+    svg.appendChild(txt);
+  });
+}
+
+// ═══════════════════════════════════════════
+// 테이블 클릭으로 이동
+// ═══════════════════════════════════════════
+function jump(id){
+  const el=document.getElementById(id);
+  if(!el) return;
+  const l=parseInt(el.style.left), t=parseInt(el.style.top);
+  const vw=wrap.offsetWidth, vh=wrap.offsetHeight;
+  tx=vw/2 - (l + el.offsetWidth/2)*scale;
+  ty=vh/2 - (t + el.offsetHeight/2)*scale;
+  applyTx();
+  // 하이라이트
+  el.style.transition='box-shadow .2s, border-color .2s';
+  el.style.boxShadow='0 0 0 3px '+el.style.borderColor+', 0 8px 32px rgba(0,0,0,.7)';
+  setTimeout(()=>{ el.style.boxShadow=''; el.style.transition=''; }, 1800);
+}
+
+window.addEventListener('load',()=>setTimeout(drawLines,80));
+</script>
+</body>
+</html>
