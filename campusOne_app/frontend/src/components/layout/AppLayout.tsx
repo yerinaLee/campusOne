@@ -15,6 +15,12 @@ import {
   Building2,
   Briefcase,
   FileText,
+  ScanLine,
+  CalendarCheck,
+  MessageCircle,
+  ClipboardCheck,
+  BookOpenCheck,
+  CalendarClock,
 } from 'lucide-react';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -50,6 +56,12 @@ function getNavItems(role: string): NavItem[] {
       ...common,
       { to: '/enrollments', label: '수강신청 현황', icon: <ClipboardList size={18} /> },
       { to: '/grades', label: '내 성적', icon: <GraduationCap size={18} /> },
+      { to: '/attendance/my', label: '내 출결', icon: <CalendarCheck size={18} /> },
+      { to: '/assignments', label: '과제', icon: <ClipboardCheck size={18} /> },
+      { to: '/exams/my-schedule', label: '내 시험 일정', icon: <CalendarClock size={18} /> },
+      { to: '/exams', label: '시험 일정', icon: <BookOpenCheck size={18} /> },
+      { to: '/counseling/request', label: '상담 신청', icon: <MessageCircle size={18} /> },
+      { to: '/counseling/history', label: '상담 내역', icon: <FileText size={18} /> },
       { to: '/departments', label: '학과 안내', icon: <Building2 size={18} /> },
     ];
   }
@@ -58,6 +70,11 @@ function getNavItems(role: string): NavItem[] {
     return [
       ...common,
       { to: '/grades/manage', label: '성적 입력', icon: <PenSquare size={18} /> },
+      { to: '/attendance/manage', label: '출결 관리', icon: <ScanLine size={18} /> },
+      { to: '/assignments', label: '과제 관리', icon: <ClipboardCheck size={18} /> },
+      { to: '/exams', label: '시험 일정', icon: <BookOpenCheck size={18} /> },
+      { to: '/counseling/manage', label: '상담 관리', icon: <MessageCircle size={18} /> },
+      { to: '/counseling/history', label: '상담 기록', icon: <FileText size={18} /> },
       { to: '/students', label: '학생 조회', icon: <Users size={18} /> },
       { to: '/departments', label: '학과 안내', icon: <Building2 size={18} /> },
     ];
@@ -66,6 +83,9 @@ function getNavItems(role: string): NavItem[] {
   if (role === 'STAFF') {
     return [
       ...common,
+      { to: '/exams', label: '시험 일정', icon: <BookOpenCheck size={18} /> },
+      { to: '/counseling/manage', label: '상담 관리', icon: <MessageCircle size={18} /> },
+      { to: '/counseling/history', label: '상담 기록', icon: <FileText size={18} /> },
       { to: '/students', label: '학생 관리', icon: <Users size={18} /> },
       { to: '/professors', label: '교수 관리', icon: <UserCog size={18} /> },
       { to: '/departments', label: '학과 관리', icon: <Building2 size={18} /> },
@@ -75,6 +95,9 @@ function getNavItems(role: string): NavItem[] {
   // ADMIN
   return [
     ...common,
+    { to: '/exams', label: '시험 일정', icon: <BookOpenCheck size={18} /> },
+    { to: '/counseling/manage', label: '상담 관리', icon: <MessageCircle size={18} /> },
+    { to: '/counseling/history', label: '상담 기록', icon: <FileText size={18} /> },
     { to: '/students', label: '학생 관리', icon: <Users size={18} /> },
     { to: '/professors', label: '교수 관리', icon: <UserCog size={18} /> },
     { to: '/staff', label: '교직원 관리', icon: <Briefcase size={18} /> },

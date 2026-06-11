@@ -1,6 +1,6 @@
 # CampusOne 학사 업무 시스템 — 작업 로그
 
-마지막 업데이트: 2026-06-09 (2차)
+마지막 업데이트: 2026-06-10
 
 ## 프로젝트 개요
 
@@ -18,24 +18,6 @@ campusOne/
 ├── WORK_LOG.md       		-- 현재까지 작업 진행상황 로그
 └── api_spec.md             -- API 명세서
 ```
-
-### 기술 스택
-
-**백엔드**
-- Spring Boot 3.5.14, Java 17
-- Spring Data JPA + Hibernate 6 (OracleDialect, validate 모드)
-- Spring Security + JWT (jjwt 0.12.6)
-- Oracle 21c XE (Docker, schema=UAMS, localhost:1521/XEPDB1)
-- Lombok, Bean Validation
-
-**프론트엔드**
-- React 19, Vite 8, TypeScript
-- TailwindCSS v4 (`@tailwindcss/vite`)
-- react-router-dom v7 (`createBrowserRouter`)
-- @tanstack/react-query v5, zustand v5 + persist
-- axios v1, react-hook-form v7 + zod v4, lucide-react
-
----
 
 ## 개발 환경
 
@@ -76,21 +58,6 @@ npm run dev         # http://localhost:5173
 | `DATE` | `LocalDate` | |
 | 테이블명/컬럼명 | 대문자 (`@Table(name="USERS")`) | Oracle 관례 |
 | default_schema | `application.yaml`의 `hibernate.default_schema: UAMS` | 엔티티에 schema 속성 불필요 |
-
----
-
-## API 공통 응답 형식
-
-```json
-// 성공
-{ "success": true, "data": { ... }, "message": null }
-
-// 실패
-{ "success": false, "data": null, "message": "에러 메시지" }
-```
-
-Base URL: `http://localhost:8080/api`  
-인증: `Authorization: Bearer <accessToken>` 헤더
 
 ---
 
@@ -241,10 +208,10 @@ Base URL: `http://localhost:8080/api`
 
 | 역할 | 메뉴 항목 |
 |------|-----------|
-| STUDENT | 대시보드, 강의 목록, 공지사항, 전자결재, 수강신청 현황, 내 성적, 학과 안내 |
-| PROFESSOR | 대시보드, 강의 목록, 공지사항, 전자결재, 성적 입력, 학생 조회, 학과 안내 |
-| STAFF | 대시보드, 강의 목록, 공지사항, 전자결재, 학생 관리, 교수 관리, 학과 관리 |
-| ADMIN | 대시보드, 강의 목록, 공지사항, 전자결재, 학생 관리, 교수 관리, 교직원 관리, 학과 관리 |
+| STUDENT | 대시보드, 강의 목록, 공지사항, 전자결재, 수강신청 현황, 내 성적, 내 출결, **과제**, **내 시험 일정**, **시험 일정**, **상담 신청**, **상담 내역**, 학과 안내 |
+| PROFESSOR | 대시보드, 강의 목록, 공지사항, 전자결재, 성적 입력, 출결 관리, **과제 관리**, **시험 일정**, **상담 관리**, **상담 기록**, 학생 조회, 학과 안내 |
+| STAFF | 대시보드, 강의 목록, 공지사항, 전자결재, **시험 일정**, **상담 관리**, **상담 기록**, 학생 관리, 교수 관리, 학과 관리 |
+| ADMIN | 대시보드, 강의 목록, 공지사항, 전자결재, **시험 일정**, **상담 관리**, **상담 기록**, 학생 관리, 교수 관리, 교직원 관리, 학과 관리 |
 
 ---
 
@@ -266,6 +233,145 @@ Base URL: `http://localhost:8080/api`
 ---
 
 ## 다음 작업 우선순위
+
+### 🆕 Phase 3: 학생 출결 시스템 (신규 기능)
+
+> 설계 기준: `structure_v2_1.md` §5.11, `api_spec.md` PART 13
+
+#### 백엔드 (campusOne_api) ✅ 완료 (2026-06-10)
+
+| 순서 | 파일 경로 | 작업 내용 | 상태 |
+|------|-----------|-----------|------|
+| 1 | Oracle DDL | `ATTENDANCE_SESSIONS`, `ATTENDANCE_RECORDS` 테이블 생성 | ✅ 완료 |
+| 2 | `entity/attendance/AttendanceSession.java` | `ATTENDANCE_SESSIONS` JPA 엔티티 | ✅ 완료 |
+| 3 | `entity/attendance/AttendanceRecord.java` | `ATTENDANCE_RECORDS` JPA 엔티티 | ✅ 완료 |
+| 4 | `domain/attendance/repository/AttendanceSessionRepository.java` | QR 토큰 조회, 코스별 세션 목록 | ✅ 완료 |
+| 5 | `domain/attendance/repository/AttendanceRecordRepository.java` | 세션별/학생별 기록 조회 | ✅ 완료 |
+| 6 | `domain/attendance/dto/` | 세션 생성 Request, 체크인 Request, 세션 상세·목록·집계 Response | ✅ 완료 |
+| 7 | `domain/attendance/service/AttendanceService.java` | 세션 생성 (UUID + 6자리 코드 생성), 체크인 검증, 수동 조정 | ✅ 완료 |
+| 8 | `domain/attendance/controller/AttendanceController.java` | REST Controller (10개 엔드포인트) | ✅ 완료 |
+| 9 | `global/exception/ErrorCode.java` | `ATTENDANCE_SESSION_CLOSED`, `INVALID_ACCESS_CODE`, `ALREADY_CHECKED_IN`, `NOT_ENROLLED` 추가 | ✅ 완료 |
+| 10 | `domain/enrollment/repository/EnrollmentRepository.java` | 출결 통계 및 검증에 필요한 JpaRepository 누락 메서드 추가 | ✅ 완료 |
+
+> **핵심 비즈니스 로직 (AttendanceService)**
+> - `createSession()`: `UUID.randomUUID().toString()` = qrToken, `String.format("%06d", random.nextInt(1_000_000))` = accessCode
+> - `checkIn()`: ① 세션 ACTIVE 확인 → ② accessCode 일치 → ③ ENROLLMENTS 수강 여부 → ④ 중복 체크인 방지 → ⑤ 시각 비교 (lateThreshold) → PRESENT / LATE
+
+#### 프론트엔드 (campusOne_app)
+
+| 순서 | 파일 경로 | 작업 내용 |
+|------|-----------|-----------|
+| 1 | `src/api/attendance.ts` | 출결 API 모듈 (createSession, closeSession, regenerateCode, getRecords, getSummary, getQrSession, checkIn, getMyAttendance) |
+| 2 | `src/types/index.ts` | `AttendanceSession`, `AttendanceRecord`, `AttendanceSummary`, `MyAttendance` 타입 추가 |
+| 3 | `src/pages/attendance/AttendanceManage.tsx` | 교수용: 세션 생성 폼 + QR 코드 표시 + 6자리 코드 노출 + 실시간 출결 현황 테이블 |
+| 4 | `src/pages/attendance/AttendanceCheckIn.tsx` | 학생용: `/attend/:qrToken` 진입 → 세션 정보 표시 → 6자리 코드 입력 폼 → 체크인 결과 |
+| 5 | `src/pages/attendance/MyAttendance.tsx` | 학생용: 강의별 출석률 + 세부 기록 조회 |
+| 6 | `src/components/layout/AppLayout.tsx` | PROFESSOR 사이드바에 `출결 관리` 추가, STUDENT 사이드바에 `내 출결` 추가 |
+| 7 | `src/App.tsx` | `/attend/:qrToken` PUBLIC 라우트 추가 (비로그인 시 로그인 후 원래 URL로 복귀) |
+
+> **프론트 구현 주의사항**
+> - `/attend/:qrToken` 은 비인증 접근 가능한 PUBLIC 라우트로 설정 (ProtectedRoute 제외)
+> - 체크인 API 호출 시 JWT 필요 → 미로그인이면 로그인 페이지로 리다이렉트 후 `?redirect=/attend/{token}` 파라미터로 복귀
+> - QR 코드 이미지는 프론트에서 `qrcode` npm 패키지로 `qrUrl` 값을 렌더링
+> - 교수 세션 현황 화면은 초기 구현에서 수동 새로고침, 이후 폴링(5초) 또는 WebSocket으로 개선
+
+---
+
+### 🆕 Phase 4: 상담·과제·시험 시스템 (신규 기능)
+
+> 설계 기준: `structure_v2_1.md` §5.12~5.14, `api_spec.md` PART 14~16
+
+#### 📋 Phase 4 백엔드 작업 목록
+
+##### FR-12. 학생 상담 관리 ✅ 완료
+| 순서 | 파일 경로 | 작업 내용 | 상태 |
+|------|-----------|-----------|------|
+| 1 | Oracle DDL | `COUNSELING_REQUESTS`, `COUNSELING_RECORDS` 테이블 생성 | ✅ 완료 |
+| 2 | `entity/counseling/CounselingRequest.java` | 상담 신청 엔티티 | ✅ 완료 |
+| 3 | `entity/counseling/CounselingRecord.java` | 상담 기록 엔티티 | ✅ 완료 |
+| 4 | `domain/counseling/repository/CounselingRequestRepository.java` | 학생별/상태별 신청 조회 | ✅ 완료 |
+| 5 | `domain/counseling/repository/CounselingRecordRepository.java` | 학생별/상담사별 기록 조회 | ✅ 완료 |
+| 6 | `domain/counseling/dto/` | 신청 Request/Response, 기록 Request/Response | ✅ 완료 |
+| 7 | `domain/counseling/service/CounselingService.java` | 신청 처리, 기록 CRUD, 이메일 발송 | ✅ 완료 |
+| 8 | `domain/counseling/controller/CounselingController.java` | 9개 엔드포인트 | ✅ 완료 |
+| 9 | `global/exception/ErrorCode.java` | `COUNSELING_REQUEST_ALREADY_EXISTS` 추가 | ✅ 완료 |
+
+> **이메일 발송**: 로컬 콘솔 로그(`log.info`)를 이용한 더미 발송으로 처리 완료.
+
+##### FR-13. 과제 제출 시스템 ✅ 완료
+| 순서 | 파일 경로 | 작업 내용 | 상태 |
+|------|-----------|-----------|------|
+| 1 | Oracle DDL | `ASSIGNMENTS`, `ASSIGNMENT_SUBMISSIONS` 테이블 생성 | ✅ 완료 |
+| 2 | `entity/assignment/Assignment.java` | 과제 엔티티 | ✅ 완료 |
+| 3 | `entity/assignment/AssignmentSubmission.java` | 제출물 엔티티 | ✅ 완료 |
+| 4 | `domain/assignment/repository/AssignmentRepository.java` | 강의별 과제 조회 | ✅ 완료 |
+| 5 | `domain/assignment/repository/AssignmentSubmissionRepository.java` | 과제별/학생별 제출 조회 | ✅ 완료 |
+| 6 | `domain/assignment/dto/` | 과제 생성/수정 Request, 제출 Request, 채점 Request, Response | ✅ 완료 |
+| 7 | `domain/assignment/service/AssignmentService.java` | 과제 CRUD, 제출 처리 (지각 판정), 채점 | ✅ 완료 |
+| 8 | `domain/assignment/controller/AssignmentController.java` | 9개 엔드포인트 | ✅ 완료 |
+| 9 | `global/exception/ErrorCode.java` | `SUBMISSION_ALREADY_EXISTS`, `ASSIGNMENT_CLOSED` 추가 | ✅ 완료 |
+
+> **지각 판정**: `submittedAt.isAfter(assignment.getDueDate())` → status = `LATE`. `allowLateSubmit = false` 이면 `ASSIGNMENT_CLOSED` 예외 발생.
+
+##### FR-14. 시험 관리감독 시스템 ✅ 완료
+| 순서 | 파일 경로 | 작업 내용 | 상태 |
+|------|-----------|-----------|------|
+| 1 | Oracle DDL | `EXAMS`, `EXAM_REGISTRATIONS`, `EXAM_SUPERVISORS` 테이블 생성 | ✅ 완료 |
+| 2 | `entity/exam/Exam.java` | 시험 엔티티 | ✅ 완료 |
+| 3 | `entity/exam/ExamRegistration.java` | 시험 등록/신청 엔티티 | ✅ 완료 |
+| 4 | `entity/exam/ExamSupervisor.java` | 감독관 배정 엔티티 | ✅ 완료 |
+| 5 | `domain/exam/repository/ExamRepository.java` | 강의별/날짜별 시험 조회 | ✅ 완료 |
+| 6 | `domain/exam/repository/ExamRegistrationRepository.java` | 시험별 응시자 조회, 학생별 시험 일정 | ✅ 완료 |
+| 7 | `domain/exam/repository/ExamSupervisorRepository.java` | 시험별 감독관, 사용자별 감독 시험 | ✅ 완료 |
+| 8 | `domain/exam/dto/` | 시험 생성/수정 Request, 감독관 배정 Request, 응시 상태 Request, Response | ✅ 완료 |
+| 9 | `domain/exam/service/ExamService.java` | 시험 CRUD, 감독관 배정, 특별시험 신청/승인, 응시 상태 관리 | ✅ 완료 |
+| 10 | `domain/exam/controller/ExamController.java` | 12개 엔드포인트 | ✅ 완료 |
+| 11 | `global/exception/ErrorCode.java` | `EXAM_ALREADY_REGISTERED`, `EXAM_FULL` 추가 | ✅ 완료 |
+
+---
+
+#### 📋 Phase 4 프론트엔드 작업 목록 ✅ 완료 (2026-06-10)
+
+##### FR-12. 학생 상담 관리
+| 순서 | 파일 경로 | 작업 내용 | 상태 |
+|------|-----------|-----------|------|
+| 1 | `src/api/counseling.ts` | 상담 API 모듈 (신청/처리/기록 CRUD/이메일) | ✅ 완료 |
+| 2 | `src/types/index.ts` | `CounselingRequest`, `CounselingRecord` 타입 추가 | ✅ 완료 |
+| 3 | `src/pages/counseling/CounselingRequestPage.tsx` | 학생용: 상담 신청 폼 + 내 신청 현황 + 상태 배지 | ✅ 완료 |
+| 4 | `src/pages/counseling/CounselingManage.tsx` | 교수·교직원용: 신청 목록(수락/거절/기록작성 모달) | ✅ 완료 |
+| 5 | `src/pages/counseling/CounselingHistory.tsx` | 공통: 상담 기록 목록+상세 2패널, 이메일 발송 버튼 | ✅ 완료 |
+
+##### FR-13. 과제 제출 시스템
+| 순서 | 파일 경로 | 작업 내용 | 상태 |
+|------|-----------|-----------|------|
+| 1 | `src/api/assignments.ts` | 과제 API 모듈 (CRUD, 제출 JSON/multipart, 채점) | ✅ 완료 |
+| 2 | `src/types/index.ts` | `Assignment`, `AssignmentSubmission` 타입 추가 | ✅ 완료 |
+| 3 | `src/pages/assignments/AssignmentList.tsx` | 공통: 강의 선택 → 과제 목록 + D-day + 제출 상태 | ✅ 완료 |
+| 4 | `src/pages/assignments/AssignmentDetail.tsx` | 학생용: 제출 폼(파일/텍스트) + 결과 / 교수용: 제출 현황 + 채점 모달 | ✅ 완료 |
+| 5 | `src/pages/assignments/AssignmentCreate.tsx` | 교수용: react-hook-form+zod 과제 개설 폼 | ✅ 완료 |
+
+##### FR-14. 시험 관리감독 시스템
+| 순서 | 파일 경로 | 작업 내용 | 상태 |
+|------|-----------|-----------|------|
+| 1 | `src/api/exams.ts` | 시험 API 모듈 (CRUD, 감독관, 특별신청, 응시 상태) | ✅ 완료 |
+| 2 | `src/types/index.ts` | `Exam`, `ExamRegistration`, `ExamSupervisor` 타입 추가 | ✅ 완료 |
+| 3 | `src/pages/exams/ExamList.tsx` | 공통: 강의/유형/날짜 필터 + 시험 목록 | ✅ 완료 |
+| 4 | `src/pages/exams/ExamDetail.tsx` | 시험 상세 + 감독관 추가/제거 + 특별시험 신청 + 응시자 상태 변경 | ✅ 완료 |
+| 5 | `src/pages/exams/ExamCreate.tsx` | 교수·교직원용: react-hook-form+zod 시험 등록 폼 | ✅ 완료 |
+| 6 | `src/pages/exams/MyExamSchedule.tsx` | 학생용: 날짜별 그룹 내 시험 일정 리스트 | ✅ 완료 |
+
+##### 라우팅 & 레이아웃 통합
+| 파일 | 변경 내용 | 상태 |
+|------|-----------|------|
+| `src/components/layout/AppLayout.tsx` | 역할별 상담/과제/시험 메뉴 추가 (STUDENT: 상담신청·내시험·시험일정·과제 / PROFESSOR: 상담관리·과제·시험 / STAFF·ADMIN: 상담관리·시험) | ✅ 완료 |
+| `src/App.tsx` | 상담(3), 과제(3), 시험(4) 라우트 추가 (역할별 ProtectedRoute 포함) | ✅ 완료 |
+
+> **공통 주의사항**
+> - 파일 업로드(과제 제출)는 `multipart/form-data`. 백엔드에서 로컬 파일 경로 저장, 향후 S3 교체 대비 `FileStorageService` 인터페이스로 추상화 권장.
+> - 이메일 발송(상담 통지)은 비동기(`@Async`) 처리로 API 응답 지연 방지.
+> - 시험 날짜는 프론트에서 날짜 피커 + 시간 피커 조합 (ISO 8601 형식으로 전송).
+
+---
 
 ### 🔴 우선 (통합 테스트 준비)
 

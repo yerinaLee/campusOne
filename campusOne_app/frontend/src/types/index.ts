@@ -266,3 +266,258 @@ export interface ApprovalDetailType extends ApprovalListItem {
   formData: Record<string, unknown> | null;
   approvalLines: ApprovalLine[];
 }
+
+// ─── Attendance ────────────────────────────────────────────────────────────
+
+export type AttendanceSessionStatus = 'ACTIVE' | 'CLOSED' | 'EXPIRED';
+export type AttendanceRecordStatus = 'PRESENT' | 'LATE' | 'ABSENT';
+
+export interface AttendanceSession {
+  id: number;
+  courseId: number;
+  courseName: string;
+  lectureDate: string;
+  startTime: string;
+  endTime: string;
+  lateThreshold: string | null;
+  accessCode: string;
+  qrToken: string;
+  qrUrl: string;
+  status: AttendanceSessionStatus;
+}
+
+export interface AttendanceSessionDetail extends AttendanceSession {
+  totalEnrolled: number;
+  presentCount: number;
+  lateCount: number;
+  absentCount: number;
+}
+
+export interface AttendanceRecord {
+  id: number;
+  studentId: number;
+  studentNumber: string;
+  studentName: string;
+  status: AttendanceRecordStatus;
+  checkedInAt: string | null;
+  isManual: boolean;
+}
+
+export interface AttendanceSummaryStudent {
+  studentId: number;
+  studentNumber: string;
+  studentName: string;
+  presentCount: number;
+  lateCount: number;
+  absentCount: number;
+  attendanceRate: number;
+}
+
+export interface AttendanceSummary {
+  courseId: number;
+  courseName: string;
+  totalSessions: number;
+  students: AttendanceSummaryStudent[];
+}
+
+export interface MyAttendanceRecord {
+  sessionId: number;
+  lectureDate: string;
+  status: AttendanceRecordStatus;
+  checkedInAt: string | null;
+}
+
+export interface MyAttendanceCourse {
+  courseId: number;
+  courseName: string;
+  totalSessions: number;
+  presentCount: number;
+  lateCount: number;
+  absentCount: number;
+  attendanceRate: number;
+  records: MyAttendanceRecord[];
+}
+
+export interface QrSessionInfo {
+  sessionId: number;
+  courseName: string;
+  professorName: string;
+  lectureDate: string;
+  isActive: boolean;
+  endTime: string;
+}
+
+// ─── Counseling ────────────────────────────────────────────────────────────
+
+export type CounselingType = 'ACADEMIC' | 'MENTAL' | 'CAREER' | 'FINANCIAL' | 'PERSONAL' | 'ETC';
+export type CounselingRequestStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'COMPLETED' | 'CANCELLED';
+
+export interface CounselingRequestItem {
+  id: number;
+  studentName: string;
+  studentNumber: string;
+  counselingType: CounselingType;
+  preferredDate: string | null;
+  status: CounselingRequestStatus;
+  rejectReason: string | null;
+  createdAt: string;
+}
+
+export interface CounselingRecordListItem {
+  id: number;
+  studentName: string;
+  counselorName: string;
+  counselingType: CounselingType;
+  subject: string;
+  counseledAt: string;
+  isNotified: boolean;
+  isConfidential: boolean;
+}
+
+export interface CounselingRecordDetail {
+  id: number;
+  studentId: number;
+  studentName: string;
+  counselorId: number;
+  counselorName: string;
+  counselingType: CounselingType;
+  subject: string;
+  content: string;
+  outcome: string | null;
+  followUp: string | null;
+  counseledAt: string;
+  isNotified: boolean;
+  isConfidential: boolean;
+}
+
+// ─── Assignment ────────────────────────────────────────────────────────────
+
+export type AssignmentStatus = 'OPEN' | 'CLOSED' | 'GRADED';
+export type SubmissionType = 'FILE' | 'TEXT' | 'BOTH';
+export type SubmissionStatus = 'SUBMITTED' | 'LATE' | 'GRADED';
+
+export interface AssignmentListItem {
+  id: number;
+  title: string;
+  dueDate: string;
+  maxScore: number;
+  submissionType: SubmissionType;
+  status: AssignmentStatus;
+  allowLateSubmit: boolean;
+  submittedCount?: number;
+  totalEnrolled?: number;
+  mySubmission?: MySubmission | null;
+}
+
+export interface AssignmentDetail {
+  id: number;
+  courseId: number;
+  courseName: string;
+  title: string;
+  description: string | null;
+  dueDate: string;
+  maxScore: number;
+  submissionType: SubmissionType;
+  allowLateSubmit: boolean;
+  isVisible: boolean;
+  status: AssignmentStatus;
+}
+
+export interface MySubmission {
+  id: number;
+  assignmentTitle: string;
+  status: SubmissionStatus;
+  submittedAt: string;
+  fileName: string | null;
+  score: number | null;
+  maxScore: number;
+  feedback: string | null;
+  gradedAt: string | null;
+}
+
+export interface SubmissionListItem {
+  id: number;
+  studentId: number;
+  studentNumber: string;
+  studentName: string;
+  status: SubmissionStatus;
+  submittedAt: string;
+  score: number | null;
+  isGraded: boolean;
+}
+
+export interface SubmissionSummary {
+  assignmentId: number;
+  title: string;
+  submittedCount: number;
+  lateCount: number;
+  notSubmittedCount: number;
+  submissions: SubmissionListItem[];
+  notSubmitted: { studentId: number; studentNumber: string; studentName: string }[];
+}
+
+// ─── Exam ──────────────────────────────────────────────────────────────────
+
+export type ExamType = 'MIDTERM' | 'FINAL' | 'QUIZ' | 'MAKEUP' | 'EXTRA';
+export type ExamStatus = 'SCHEDULED' | 'ONGOING' | 'COMPLETED' | 'CANCELLED';
+export type ExamRegistrationStatus = 'REGISTERED' | 'ATTENDED' | 'ABSENT' | 'EXEMPT';
+export type SupervisorRole = 'MAIN' | 'ASSISTANT';
+
+export interface ExamListItem {
+  id: number;
+  courseId: number;
+  courseName: string;
+  examType: ExamType;
+  title: string;
+  examDate: string;
+  startTime: string;
+  endTime: string;
+  room: string | null;
+  status: ExamStatus;
+}
+
+export interface ExamSupervisorInfo {
+  userId: number;
+  name: string;
+  role: SupervisorRole;
+}
+
+export interface ExamDetail extends ExamListItem {
+  professorName: string;
+  maxStudents: number | null;
+  description: string | null;
+  supervisors: ExamSupervisorInfo[];
+}
+
+export interface ExamRegistrationItem {
+  id: number;
+  studentId: number;
+  studentNumber: string;
+  studentName: string;
+  status: ExamRegistrationStatus;
+  isSpecial: boolean;
+  registeredAt: string;
+}
+
+export interface MyExamScheduleItem {
+  examId: number;
+  courseId: number;
+  courseName: string;
+  examType: ExamType;
+  title: string;
+  examDate: string;
+  startTime: string;
+  endTime: string;
+  room: string | null;
+  myStatus: ExamRegistrationStatus;
+}
+
+export interface MySupervisionItem {
+  examId: number;
+  courseName: string;
+  title: string;
+  examDate: string;
+  startTime: string;
+  room: string | null;
+  supervisorRole: SupervisorRole;
+}

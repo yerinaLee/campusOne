@@ -27,4 +27,8 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
         WHERE e.course.id = :courseId AND e.status != 'WITHDRAWN'
         """)
     List<Enrollment> findActiveByCourseId(@Param("courseId") Long courseId);
+
+    List<Enrollment> findByCourseId(Long courseId);
+    List<Enrollment> findByStudentId(Long studentId);
+    java.util.Optional<Enrollment> findByCourseIdAndStudentId(Long courseId, Long studentId);
 }

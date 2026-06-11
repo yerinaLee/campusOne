@@ -76,6 +76,15 @@
 | 409 | `OPTIMISTIC_LOCK_FAIL` | 동시 요청 충돌 (재시도) |
 | 423 | `ACCOUNT_LOCKED` | 계정 잠금 |
 | 403 | `ENROLLMENT_PERIOD_CLOSED` | 수강신청 기간 아님 |
+| 409 | `ALREADY_CHECKED_IN` | 이미 출석 체크인 완료 |
+| 400 | `ATTENDANCE_SESSION_CLOSED` | 출결 세션 종료·만료됨 |
+| 400 | `INVALID_ACCESS_CODE` | 출결 코드 불일치 |
+| 403 | `NOT_ENROLLED` | 해당 강의 미수강 학생 |
+| 409 | `SUBMISSION_ALREADY_EXISTS` | 이미 과제 제출 완료 |
+| 400 | `ASSIGNMENT_CLOSED` | 마감된 과제 (지각 제출 불허) |
+| 409 | `EXAM_ALREADY_REGISTERED` | 이미 시험 등록됨 |
+| 409 | `EXAM_FULL` | 시험 정원 초과 |
+| 409 | `COUNSELING_REQUEST_ALREADY_EXISTS` | 동일 건으로 이미 상담 신청됨 |
 
 ## Role 권한 표기 규칙
 - `[ALL]` : 인증된 모든 사용자
@@ -1600,7 +1609,1098 @@
 
 ---
 
-# PART 13. 백엔드 구현 가이드 (Backend AI 전용)
+# PART 13. 출결 관리 (Attendance)
+
+---
+
+## 출결 체크인 흐름
+
+```
+[교수] 세션 생성  →  QR 토큰(UUID) + 6자리 코드 발급
+     ↓  (화면·프로젝터에 QR 표시)
+[학생] QR 스캔   →  https://campus.ac.kr/attend/{qrToken}
+     ↓  (사이트 진입 후 코드 입력)
+[학생] POST /attendance/check-in  { qrToken, accessCode }
+     ↓  (검증: 세션 유효 + 수강생 확인 + 중복 방지)
+[시스템] 출결 기록 생성  →  PRESENT 또는 LATE
+```
+
+---
+
+## POST /attendance/sessions
+**출결 세션 생성** `[PROFESSOR]`
+
+교수가 강의를 선택하고 출결 세션을 시작합니다. 시스템이 UUID 기반 QR 토큰과 6자리 랜덤 코드를 자동 생성합니다.
+
+### Request Body
+```json
+{
+  "courseId": 1,
+  "lectureDate": "2025-03-10",
+  "startTime": "2025-03-10T09:00:00+09:00",
+  "endTime": "2025-03-10T09:20:00+09:00",
+  "lateThreshold": "2025-03-10T09:10:00+09:00"
+}
+```
+
+> `lateThreshold` 생략 시 세션 종료 전 체크인은 모두 PRESENT로 처리합니다.
+
+### Response `201`
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "courseId": 1,
+    "courseName": "프로그래밍 기초",
+    "lectureDate": "2025-03-10",
+    "startTime": "2025-03-10T09:00:00+09:00",
+    "endTime": "2025-03-10T09:20:00+09:00",
+    "lateThreshold": "2025-03-10T09:10:00+09:00",
+    "accessCode": "482931",
+    "qrToken": "a3f7c2e1-4b8d-4c2a-9e1f-0123456789ab",
+    "qrUrl": "http://localhost:5173/attend/a3f7c2e1-4b8d-4c2a-9e1f-0123456789ab",
+    "status": "ACTIVE"
+  },
+  "message": "출결 세션이 생성되었습니다."
+}
+```
+
+### Error
+| 코드 | 조건 |
+|------|------|
+| `FORBIDDEN` | 본인 담당 강의가 아님 |
+| `NOT_FOUND` | 존재하지 않는 강의 |
+
+---
+
+## GET /attendance/sessions/{id}
+**출결 세션 상세 + 현황** `[PROFESSOR, ADMIN, STAFF]`
+
+### Response `200`
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "courseId": 1,
+    "courseName": "프로그래밍 기초",
+    "lectureDate": "2025-03-10",
+    "startTime": "2025-03-10T09:00:00+09:00",
+    "endTime": "2025-03-10T09:20:00+09:00",
+    "lateThreshold": "2025-03-10T09:10:00+09:00",
+    "accessCode": "482931",
+    "qrUrl": "http://localhost:5173/attend/a3f7c2e1-...",
+    "status": "ACTIVE",
+    "totalEnrolled": 35,
+    "presentCount": 20,
+    "lateCount": 3,
+    "absentCount": 12
+  }
+}
+```
+
+---
+
+## PATCH /attendance/sessions/{id}/close
+**세션 수동 종료** `[PROFESSOR]`
+
+세션을 즉시 CLOSED 상태로 변경합니다. 이후 학생 체크인 불가.
+
+### Response `200`
+```json
+{ "success": true, "data": null, "message": "출결 세션이 종료되었습니다." }
+```
+
+### Error
+| 코드 | 조건 |
+|------|------|
+| `FORBIDDEN` | 본인 세션이 아님 |
+
+---
+
+## POST /attendance/sessions/{id}/regenerate-code
+**6자리 코드 재생성** `[PROFESSOR]`
+
+세션이 ACTIVE 상태일 때만 가능. 기존 코드는 즉시 무효화됩니다.
+
+### Response `200`
+```json
+{
+  "success": true,
+  "data": { "accessCode": "719204" },
+  "message": "코드가 재생성되었습니다."
+}
+```
+
+### Error
+| 코드 | 조건 |
+|------|------|
+| `ATTENDANCE_SESSION_CLOSED` | 이미 종료된 세션 |
+
+---
+
+## GET /attendance/sessions/{id}/records
+**세션별 출결 목록** `[PROFESSOR, ADMIN, STAFF]`
+
+### Response `200`
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "studentId": 1,
+      "studentNumber": "20240001",
+      "studentName": "최예진",
+      "status": "PRESENT",
+      "checkedInAt": "2025-03-10T09:03:22+09:00",
+      "isManual": false
+    },
+    {
+      "id": 2,
+      "studentId": 2,
+      "studentNumber": "20240002",
+      "studentName": "정우진",
+      "status": "LATE",
+      "checkedInAt": "2025-03-10T09:14:05+09:00",
+      "isManual": false
+    },
+    {
+      "id": 3,
+      "studentId": 3,
+      "studentNumber": "20230001",
+      "studentName": "박도현",
+      "status": "ABSENT",
+      "checkedInAt": null,
+      "isManual": false
+    }
+  ]
+}
+```
+
+---
+
+## PUT /attendance/records/{recordId}
+**출결 수동 조정** `[PROFESSOR, ADMIN, STAFF]`
+
+출결 상태를 수동으로 변경합니다. 사유(`reason`) 입력 필수.
+
+### Request Body
+```json
+{
+  "status": "PRESENT",
+  "reason": "사전 결석계 제출 (의료 사유)"
+}
+```
+
+### Response `200`
+```json
+{
+  "success": true,
+  "data": { "id": 1, "status": "PRESENT", "isManual": true },
+  "message": "출결이 수정되었습니다."
+}
+```
+
+### Error
+| 코드 | 조건 |
+|------|------|
+| `INVALID_INPUT` | reason 미입력 |
+
+---
+
+## GET /courses/{courseId}/attendance/summary
+**강의 전체 출결 집계** `[PROFESSOR, ADMIN, STAFF]`
+
+특정 강의의 전체 세션에 대한 학생별 출결 통계를 반환합니다.
+
+### Query Parameters
+| 파라미터 | 타입 | 필수 | 설명 |
+|---------|------|------|------|
+| `year` | int | 선택 | 연도 필터 |
+| `semester` | int | 선택 | 학기 필터 (1 또는 2) |
+
+### Response `200`
+```json
+{
+  "success": true,
+  "data": {
+    "courseId": 1,
+    "courseName": "프로그래밍 기초",
+    "totalSessions": 8,
+    "students": [
+      {
+        "studentId": 1,
+        "studentNumber": "20240001",
+        "studentName": "최예진",
+        "presentCount": 7,
+        "lateCount": 1,
+        "absentCount": 0,
+        "attendanceRate": 93.8
+      }
+    ]
+  }
+}
+```
+
+---
+
+## GET /attendance/qr/{qrToken}
+**QR 토큰으로 세션 조회** `[PUBLIC]`
+
+학생이 QR을 스캔하면 이 URL로 진입합니다. 인증 없이 접근 가능하며, 세션 활성 여부와 기본 정보를 반환합니다.
+
+### Response `200`
+```json
+{
+  "success": true,
+  "data": {
+    "sessionId": 1,
+    "courseName": "프로그래밍 기초",
+    "professorName": "이민준",
+    "lectureDate": "2025-03-10",
+    "isActive": true,
+    "endTime": "2025-03-10T09:20:00+09:00"
+  }
+}
+```
+
+### Error
+| 코드 | 조건 |
+|------|------|
+| `NOT_FOUND` | 유효하지 않은 QR 토큰 |
+| `ATTENDANCE_SESSION_CLOSED` | 이미 종료된 세션 |
+
+---
+
+## POST /attendance/check-in
+**출석 체크인** `[STUDENT]`
+
+학생이 QR 토큰 + 6자리 코드를 제출하여 출석을 확인합니다. 체크인 시각이 `lateThreshold` 이후이면 LATE로 기록됩니다.
+
+### Request Body
+```json
+{
+  "qrToken": "a3f7c2e1-4b8d-4c2a-9e1f-0123456789ab",
+  "accessCode": "482931",
+  "latitude": 37.5665,
+  "longitude": 126.9780
+}
+```
+
+> `latitude`, `longitude`는 선택 항목입니다.
+
+### Response `201`
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "status": "PRESENT",
+    "checkedInAt": "2025-03-10T09:03:22+09:00",
+    "courseName": "프로그래밍 기초"
+  },
+  "message": "출석이 확인되었습니다."
+}
+```
+
+### Error
+| 코드 | 조건 |
+|------|------|
+| `ATTENDANCE_SESSION_CLOSED` | 세션이 종료되었거나 시간 만료 |
+| `INVALID_ACCESS_CODE` | 6자리 코드 불일치 |
+| `ALREADY_CHECKED_IN` | 이미 체크인 완료 |
+| `NOT_ENROLLED` | 해당 강의 미수강 학생 |
+
+---
+
+## GET /attendance/my
+**내 출결 현황** `[STUDENT]`
+
+로그인한 학생의 강의별 출결 집계와 세부 기록을 반환합니다.
+
+### Query Parameters
+| 파라미터 | 타입 | 필수 | 설명 |
+|---------|------|------|------|
+| `courseId` | long | 선택 | 특정 강의 필터 |
+| `year` | int | 선택 | 연도 |
+| `semester` | int | 선택 | 학기 (1 또는 2) |
+
+### Response `200`
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "courseId": 1,
+      "courseName": "프로그래밍 기초",
+      "totalSessions": 8,
+      "presentCount": 7,
+      "lateCount": 1,
+      "absentCount": 0,
+      "attendanceRate": 93.8,
+      "records": [
+        {
+          "sessionId": 1,
+          "lectureDate": "2025-03-10",
+          "status": "PRESENT",
+          "checkedInAt": "2025-03-10T09:03:22+09:00"
+        }
+      ]
+    }
+  ]
+}
+```
+
+---
+
+# PART 14. 학생 상담 관리 (Counseling)
+
+---
+
+## POST /counseling/requests
+**상담 신청** `[STUDENT]`
+
+### Request Body
+```json
+{
+  "counselingType": "ACADEMIC",
+  "preferredDate": "2025-04-10",
+  "reason": "전공 변경과 수강 계획에 대해 상담을 받고 싶습니다."
+}
+```
+
+### Response `201`
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "counselingType": "ACADEMIC",
+    "preferredDate": "2025-04-10",
+    "status": "PENDING",
+    "createdAt": "2025-04-05T10:00:00+09:00"
+  },
+  "message": "상담이 신청되었습니다."
+}
+```
+
+### Error
+| 코드 | 조건 |
+|------|------|
+| `COUNSELING_REQUEST_ALREADY_EXISTS` | 이미 PENDING·ACCEPTED 상태의 동일 유형 신청 존재 |
+
+---
+
+## GET /counseling/requests
+**상담 신청 목록 조회** `[ALL]`
+
+- `STUDENT`: 본인 신청 내역만 반환
+- `PROFESSOR, STAFF, ADMIN`: 전체 또는 필터 조회
+
+### Query Parameters
+| 파라미터 | 타입 | 설명 |
+|---------|------|------|
+| `studentId` | long | 학생 필터 (PROFESSOR·STAFF·ADMIN만) |
+| `status` | string | PENDING·ACCEPTED·REJECTED·COMPLETED·CANCELLED |
+| `counselingType` | string | 유형 필터 |
+
+### Response `200` (페이징)
+```json
+{
+  "success": true,
+  "data": {
+    "content": [
+      {
+        "id": 1,
+        "studentName": "홍길동",
+        "studentNumber": "20240001",
+        "counselingType": "ACADEMIC",
+        "preferredDate": "2025-04-10",
+        "status": "PENDING",
+        "createdAt": "2025-04-05T10:00:00+09:00"
+      }
+    ],
+    "page": 0, "size": 20, "totalElements": 5, "totalPages": 1
+  }
+}
+```
+
+---
+
+## PATCH /counseling/requests/{id}/accept
+**상담 신청 수락** `[PROFESSOR, STAFF]`
+
+### Response `200`
+```json
+{ "success": true, "data": { "id": 1, "status": "ACCEPTED" }, "message": "상담 신청을 수락했습니다." }
+```
+
+---
+
+## PATCH /counseling/requests/{id}/reject
+**상담 신청 거절** `[PROFESSOR, STAFF]`
+
+### Request Body
+```json
+{ "rejectReason": "해당 기간 출장으로 인해 상담이 어렵습니다." }
+```
+
+### Response `200`
+```json
+{ "success": true, "data": { "id": 1, "status": "REJECTED" }, "message": "상담 신청을 거절했습니다." }
+```
+
+---
+
+## POST /counseling/records
+**상담 기록 작성** `[PROFESSOR, STAFF]`
+
+신청서 기반 또는 직접 기록 모두 가능. `requestId`는 선택 항목.
+
+### Request Body
+```json
+{
+  "requestId": 1,
+  "studentId": 1,
+  "counselingType": "ACADEMIC",
+  "subject": "전공 변경 관련 상담",
+  "content": "학생이 컴퓨터공학과에서 데이터사이언스로의 전과를 희망...",
+  "outcome": "전과 신청서 및 학점 이수 조건 안내 완료",
+  "followUp": "다음 학기 수강 계획 재확인 예정",
+  "counseledAt": "2025-04-10T14:00:00+09:00",
+  "isConfidential": false
+}
+```
+
+### Response `201`
+```json
+{
+  "success": true,
+  "data": { "id": 1, "subject": "전공 변경 관련 상담", "counseledAt": "2025-04-10T14:00:00+09:00" },
+  "message": "상담 기록이 저장되었습니다."
+}
+```
+
+---
+
+## GET /counseling/records
+**상담 기록 목록** `[PROFESSOR, STAFF, ADMIN, STUDENT(본인)]`
+
+### Query Parameters
+| 파라미터 | 타입 | 설명 |
+|---------|------|------|
+| `studentId` | long | 학생 필터 (PROFESSOR·STAFF·ADMIN만) |
+| `counselingType` | string | 유형 필터 |
+| `from` | date | 기간 시작 (`YYYY-MM-DD`) |
+| `to` | date | 기간 종료 (`YYYY-MM-DD`) |
+
+### Response `200` (페이징)
+```json
+{
+  "success": true,
+  "data": {
+    "content": [
+      {
+        "id": 1,
+        "studentName": "홍길동",
+        "counselorName": "김교수",
+        "counselingType": "ACADEMIC",
+        "subject": "전공 변경 관련 상담",
+        "counseledAt": "2025-04-10T14:00:00+09:00",
+        "isNotified": true,
+        "isConfidential": false
+      }
+    ]
+  }
+}
+```
+
+> `isConfidential = true`인 기록은 STUDENT 조회 시 `content`, `outcome`, `followUp` 필드를 `"[비공개]"`로 마스킹합니다.
+
+---
+
+## GET /counseling/records/{id}
+**상담 기록 상세** `[PROFESSOR, STAFF, ADMIN, STUDENT(본인·비밀아닌 것만)]`
+
+### Response `200`
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "studentId": 1,
+    "studentName": "홍길동",
+    "counselorId": 5,
+    "counselorName": "김교수",
+    "counselingType": "ACADEMIC",
+    "subject": "전공 변경 관련 상담",
+    "content": "학생이 컴퓨터공학과에서...",
+    "outcome": "전과 신청서 및 학점 이수 조건 안내 완료",
+    "followUp": "다음 학기 수강 계획 재확인 예정",
+    "counseledAt": "2025-04-10T14:00:00+09:00",
+    "isNotified": true,
+    "isConfidential": false
+  }
+}
+```
+
+---
+
+## PUT /counseling/records/{id}
+**상담 기록 수정** `[PROFESSOR, STAFF]`
+
+### Request Body
+```json
+{
+  "subject": "전공 변경 및 장학금 관련 상담",
+  "content": "...",
+  "outcome": "...",
+  "followUp": "..."
+}
+```
+
+### Response `200`
+```json
+{ "success": true, "data": { "id": 1 }, "message": "상담 기록이 수정되었습니다." }
+```
+
+---
+
+## POST /counseling/records/{id}/notify
+**상담 결과 이메일 발송** `[PROFESSOR, STAFF, ADMIN]`
+
+학생의 등록 이메일로 상담 요약을 발송합니다. 비동기 처리되며 발송 완료 시 `IS_NOTIFIED = 1` 업데이트.
+
+### Response `200`
+```json
+{ "success": true, "data": null, "message": "이메일이 발송되었습니다." }
+```
+
+### Error
+| 코드 | 조건 |
+|------|------|
+| `NOT_FOUND` | 존재하지 않는 기록 |
+
+---
+
+# PART 15. 과제 제출 시스템 (Assignments)
+
+---
+
+## POST /assignments
+**과제 개설** `[PROFESSOR]`
+
+### Request Body
+```json
+{
+  "courseId": 1,
+  "title": "1주차 알고리즘 과제",
+  "description": "BFS와 DFS를 활용한 그래프 탐색 구현",
+  "dueDate": "2025-04-14T23:59:00+09:00",
+  "maxScore": 100,
+  "submissionType": "FILE",
+  "allowLateSubmit": false,
+  "isVisible": true
+}
+```
+
+### Response `201`
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "title": "1주차 알고리즘 과제",
+    "dueDate": "2025-04-14T23:59:00+09:00",
+    "status": "OPEN"
+  },
+  "message": "과제가 개설되었습니다."
+}
+```
+
+### Error
+| 코드 | 조건 |
+|------|------|
+| `FORBIDDEN` | 본인 담당 강의 아님 |
+
+---
+
+## GET /assignments
+**과제 목록 조회** `[ALL]`
+
+### Query Parameters
+| 파라미터 | 타입 | 설명 |
+|---------|------|------|
+| `courseId` | long | 강의 필터 (필수) |
+| `status` | string | OPEN·CLOSED·GRADED |
+
+### Response `200`
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "title": "1주차 알고리즘 과제",
+      "dueDate": "2025-04-14T23:59:00+09:00",
+      "maxScore": 100,
+      "submissionType": "FILE",
+      "status": "OPEN",
+      "submittedCount": 18,
+      "totalEnrolled": 25
+    }
+  ]
+}
+```
+
+> STUDENT 조회 시 `submittedCount`, `totalEnrolled`는 미포함. 본인 제출 여부(`mySubmission: null | {...}`)를 추가 반환.
+
+---
+
+## GET /assignments/{id}
+**과제 상세** `[ALL]`
+
+### Response `200`
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "courseId": 1,
+    "courseName": "자료구조",
+    "title": "1주차 알고리즘 과제",
+    "description": "BFS와 DFS를 활용한 그래프 탐색 구현",
+    "dueDate": "2025-04-14T23:59:00+09:00",
+    "maxScore": 100,
+    "submissionType": "FILE",
+    "allowLateSubmit": false,
+    "status": "OPEN"
+  }
+}
+```
+
+---
+
+## PUT /assignments/{id}
+**과제 수정** `[PROFESSOR]`
+
+## DELETE /assignments/{id}
+**과제 삭제** `[PROFESSOR]`
+
+```json
+{ "success": true, "data": null, "message": "과제가 삭제되었습니다." }
+```
+
+---
+
+## POST /assignments/{id}/submissions
+**과제 제출** `[STUDENT]`
+
+- `submissionType = FILE`: `multipart/form-data` 전송 (`file` + `content` 선택)
+- `submissionType = TEXT`: JSON Body
+
+### Request (TEXT 유형)
+```json
+{
+  "content": "BFS 구현: queue를 사용하여..."
+}
+```
+
+### Response `201`
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "assignmentId": 1,
+    "status": "SUBMITTED",
+    "submittedAt": "2025-04-13T20:30:00+09:00"
+  },
+  "message": "과제가 제출되었습니다."
+}
+```
+
+### Error
+| 코드 | 조건 |
+|------|------|
+| `SUBMISSION_ALREADY_EXISTS` | 이미 제출 완료 |
+| `ASSIGNMENT_CLOSED` | 마감됐고 지각 제출 불허 |
+| `NOT_ENROLLED` | 해당 강의 미수강 |
+
+> 마감일 초과 + `allowLateSubmit = true`면 status = `LATE`로 저장.
+
+---
+
+## GET /assignments/{id}/submissions
+**제출 현황 조회** `[PROFESSOR, ADMIN, STAFF]`
+
+### Response `200`
+```json
+{
+  "success": true,
+  "data": {
+    "assignmentId": 1,
+    "title": "1주차 알고리즘 과제",
+    "submittedCount": 18,
+    "lateCount": 2,
+    "notSubmittedCount": 5,
+    "submissions": [
+      {
+        "id": 1,
+        "studentId": 1,
+        "studentNumber": "20240001",
+        "studentName": "홍길동",
+        "status": "SUBMITTED",
+        "submittedAt": "2025-04-13T20:30:00+09:00",
+        "score": null,
+        "isGraded": false
+      }
+    ],
+    "notSubmitted": [
+      { "studentId": 5, "studentNumber": "20240005", "studentName": "최예진" }
+    ]
+  }
+}
+```
+
+---
+
+## GET /assignments/{id}/submissions/my
+**내 제출물 조회** `[STUDENT]`
+
+### Response `200`
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "assignmentTitle": "1주차 알고리즘 과제",
+    "status": "GRADED",
+    "submittedAt": "2025-04-13T20:30:00+09:00",
+    "fileName": "homework1.zip",
+    "score": 92.0,
+    "maxScore": 100,
+    "feedback": "BFS 구현은 정확하나 DFS에서 재귀 깊이 제한 처리가 필요합니다.",
+    "gradedAt": "2025-04-16T10:00:00+09:00"
+  }
+}
+```
+
+---
+
+## PUT /assignments/{id}/submissions/{submissionId}/grade
+**채점** `[PROFESSOR]`
+
+### Request Body
+```json
+{
+  "score": 92.0,
+  "feedback": "BFS 구현은 정확하나 DFS에서 재귀 깊이 제한 처리가 필요합니다."
+}
+```
+
+### Response `200`
+```json
+{
+  "success": true,
+  "data": { "id": 1, "score": 92.0, "status": "GRADED" },
+  "message": "채점이 완료되었습니다."
+}
+```
+
+### Error
+| 코드 | 조건 |
+|------|------|
+| `FORBIDDEN` | 본인 담당 강의 아님 |
+| `INVALID_INPUT` | 점수가 maxScore 초과 |
+
+---
+
+# PART 16. 시험 관리감독 (Exams)
+
+---
+
+## POST /exams
+**시험 등록** `[PROFESSOR, STAFF]`
+
+### Request Body
+```json
+{
+  "courseId": 1,
+  "examType": "MIDTERM",
+  "title": "2025-1학기 자료구조 중간고사",
+  "examDate": "2025-04-23",
+  "startTime": "2025-04-23T10:00:00+09:00",
+  "endTime": "2025-04-23T12:00:00+09:00",
+  "room": "공학관 401호",
+  "maxStudents": 35,
+  "description": "4장까지 범위"
+}
+```
+
+### Response `201`
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "title": "2025-1학기 자료구조 중간고사",
+    "examDate": "2025-04-23",
+    "startTime": "2025-04-23T10:00:00+09:00",
+    "endTime": "2025-04-23T12:00:00+09:00",
+    "room": "공학관 401호",
+    "status": "SCHEDULED"
+  },
+  "message": "시험이 등록되었습니다."
+}
+```
+
+---
+
+## GET /exams
+**시험 목록 조회** `[ALL]`
+
+### Query Parameters
+| 파라미터 | 타입 | 설명 |
+|---------|------|------|
+| `courseId` | long | 강의 필터 |
+| `examType` | string | 유형 필터 |
+| `from` | date | 기간 시작 |
+| `to` | date | 기간 종료 |
+| `status` | string | SCHEDULED·ONGOING·COMPLETED·CANCELLED |
+
+### Response `200` (페이징)
+```json
+{
+  "success": true,
+  "data": {
+    "content": [
+      {
+        "id": 1,
+        "courseId": 1,
+        "courseName": "자료구조",
+        "examType": "MIDTERM",
+        "title": "2025-1학기 자료구조 중간고사",
+        "examDate": "2025-04-23",
+        "startTime": "2025-04-23T10:00:00+09:00",
+        "endTime": "2025-04-23T12:00:00+09:00",
+        "room": "공학관 401호",
+        "status": "SCHEDULED"
+      }
+    ]
+  }
+}
+```
+
+---
+
+## GET /exams/{id}
+**시험 상세** `[ALL]`
+
+### Response `200`
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "courseId": 1,
+    "courseName": "자료구조",
+    "professorName": "김교수",
+    "examType": "MIDTERM",
+    "title": "2025-1학기 자료구조 중간고사",
+    "examDate": "2025-04-23",
+    "startTime": "2025-04-23T10:00:00+09:00",
+    "endTime": "2025-04-23T12:00:00+09:00",
+    "room": "공학관 401호",
+    "maxStudents": 35,
+    "status": "SCHEDULED",
+    "description": "4장까지 범위",
+    "supervisors": [
+      { "userId": 5, "name": "김교수", "role": "MAIN" },
+      { "userId": 10, "name": "이직원", "role": "ASSISTANT" }
+    ]
+  }
+}
+```
+
+---
+
+## PUT /exams/{id}
+**시험 수정** `[PROFESSOR, STAFF]`
+
+## DELETE /exams/{id}
+**시험 취소** `[PROFESSOR, STAFF]`
+
+```json
+{ "success": true, "data": null, "message": "시험이 취소되었습니다." }
+```
+
+---
+
+## POST /exams/{id}/supervisors
+**감독관 배정** `[PROFESSOR, STAFF, ADMIN]`
+
+### Request Body
+```json
+{
+  "supervisorId": 10,
+  "role": "ASSISTANT"
+}
+```
+
+### Response `201`
+```json
+{ "success": true, "data": { "examId": 1, "supervisorId": 10, "role": "ASSISTANT" }, "message": "감독관이 배정되었습니다." }
+```
+
+---
+
+## DELETE /exams/{id}/supervisors/{userId}
+**감독관 제거** `[PROFESSOR, STAFF, ADMIN]`
+
+```json
+{ "success": true, "data": null, "message": "감독관이 제거되었습니다." }
+```
+
+---
+
+## POST /exams/{id}/registrations
+**특별 시험 신청 (재시험·추가시험)** `[STUDENT]`
+
+일반 시험은 자동 배정(수강신청 연동). 이 API는 `MAKEUP`, `EXTRA` 유형에만 사용.
+
+### Request Body
+```json
+{
+  "reason": "당일 고열로 인한 결시. 진단서 첨부 예정."
+}
+```
+
+### Response `201`
+```json
+{
+  "success": true,
+  "data": { "id": 1, "examId": 1, "status": "REGISTERED" },
+  "message": "특별 시험 신청이 완료되었습니다."
+}
+```
+
+### Error
+| 코드 | 조건 |
+|------|------|
+| `EXAM_ALREADY_REGISTERED` | 이미 등록된 시험 |
+| `EXAM_FULL` | 정원 초과 |
+| `NOT_ENROLLED` | 해당 강의 미수강 |
+
+---
+
+## GET /exams/{id}/registrations
+**응시자 목록 조회** `[PROFESSOR, STAFF, ADMIN]`
+
+### Response `200`
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "studentId": 1,
+      "studentNumber": "20240001",
+      "studentName": "홍길동",
+      "status": "ATTENDED",
+      "isSpecial": false,
+      "registeredAt": "2025-04-23T09:55:00+09:00"
+    },
+    {
+      "id": 2,
+      "studentId": 2,
+      "studentNumber": "20240002",
+      "studentName": "정우진",
+      "status": "ABSENT",
+      "isSpecial": false,
+      "registeredAt": "2025-04-23T09:58:00+09:00"
+    }
+  ]
+}
+```
+
+---
+
+## PATCH /exams/{id}/registrations/{studentId}/status
+**응시 상태 변경** `[PROFESSOR, STAFF]`
+
+### Request Body
+```json
+{ "status": "ATTENDED" }
+```
+
+### Response `200`
+```json
+{ "success": true, "data": { "studentId": 1, "status": "ATTENDED" }, "message": "응시 상태가 변경되었습니다." }
+```
+
+---
+
+## GET /exams/my-schedule
+**내 시험 일정** `[STUDENT]`
+
+수강 중인 강의의 시험 일정을 자동 집계합니다.
+
+### Query Parameters
+| 파라미터 | 타입 | 설명 |
+|---------|------|------|
+| `year` | int | 연도 |
+| `semester` | int | 학기 |
+
+### Response `200`
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "examId": 1,
+      "courseId": 1,
+      "courseName": "자료구조",
+      "examType": "MIDTERM",
+      "title": "2025-1학기 자료구조 중간고사",
+      "examDate": "2025-04-23",
+      "startTime": "2025-04-23T10:00:00+09:00",
+      "endTime": "2025-04-23T12:00:00+09:00",
+      "room": "공학관 401호",
+      "myStatus": "REGISTERED"
+    }
+  ]
+}
+```
+
+---
+
+## GET /exams/my-supervision
+**내 감독 시험 조회** `[PROFESSOR, STAFF]`
+
+### Response `200`
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "examId": 1,
+      "courseName": "자료구조",
+      "title": "2025-1학기 자료구조 중간고사",
+      "examDate": "2025-04-23",
+      "startTime": "2025-04-23T10:00:00+09:00",
+      "room": "공학관 401호",
+      "supervisorRole": "MAIN"
+    }
+  ]
+}
+```
+
+---
+
+# PART 17. 백엔드 구현 가이드 (Backend AI 전용)
 
 ---
 
@@ -1688,7 +2788,7 @@ public class ApiResponse<T> {
 
 ---
 
-# PART 14. 프론트엔드 구현 가이드 (Frontend AI 전용)
+# PART 18. 프론트엔드 구현 가이드 (Frontend AI 전용)
 
 ---
 

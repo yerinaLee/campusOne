@@ -23,11 +23,29 @@ import StaffCreate from '@/pages/staff/StaffCreate';
 import ApprovalList from '@/pages/approvals/ApprovalList';
 import ApprovalDetail from '@/pages/approvals/ApprovalDetail';
 import ApprovalCreate from '@/pages/approvals/ApprovalCreate';
+import AttendanceManage from '@/pages/attendance/AttendanceManage';
+import AttendanceCheckIn from '@/pages/attendance/AttendanceCheckIn';
+import MyAttendance from '@/pages/attendance/MyAttendance';
+import CounselingRequestPage from '@/pages/counseling/CounselingRequestPage';
+import CounselingManage from '@/pages/counseling/CounselingManage';
+import CounselingHistory from '@/pages/counseling/CounselingHistory';
+import AssignmentList from '@/pages/assignments/AssignmentList';
+import AssignmentDetail from '@/pages/assignments/AssignmentDetail';
+import AssignmentCreate from '@/pages/assignments/AssignmentCreate';
+import ExamList from '@/pages/exams/ExamList';
+import ExamDetail from '@/pages/exams/ExamDetail';
+import ExamCreate from '@/pages/exams/ExamCreate';
+import MyExamSchedule from '@/pages/exams/MyExamSchedule';
 
 const router = createBrowserRouter([
   {
     path: '/login',
     element: <Login />,
+  },
+  {
+    // PUBLIC: 학생 QR 체크인 (로그인 없이 세션 정보 조회 가능, 체크인은 로그인 필요)
+    path: '/attend/:qrToken',
+    element: <AttendanceCheckIn />,
   },
   {
     path: '/',
@@ -83,6 +101,24 @@ const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
+      {
+        path: 'attendance/manage',
+        element: (
+          <ProtectedRoute roles={['PROFESSOR']}>
+            <AttendanceManage />
+          </ProtectedRoute>
+        ),
+      },
+
+      // ─── 학생 출결 ─────────────────────────────────────────
+      {
+        path: 'attendance/my',
+        element: (
+          <ProtectedRoute roles={['STUDENT']}>
+            <MyAttendance />
+          </ProtectedRoute>
+        ),
+      },
 
       // ─── 학생 관리 (ADMIN, STAFF, PROFESSOR) ──────────────
       {
@@ -132,6 +168,57 @@ const router = createBrowserRouter([
         element: (
           <ProtectedRoute roles={['ADMIN', 'STAFF']}>
             <ProfessorDetail />
+          </ProtectedRoute>
+        ),
+      },
+
+      // ─── 상담 ──────────────────────────────────────────────
+      {
+        path: 'counseling/request',
+        element: (
+          <ProtectedRoute roles={['STUDENT']}>
+            <CounselingRequestPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'counseling/manage',
+        element: (
+          <ProtectedRoute roles={['PROFESSOR', 'STAFF', 'ADMIN']}>
+            <CounselingManage />
+          </ProtectedRoute>
+        ),
+      },
+      { path: 'counseling/history', element: <CounselingHistory /> },
+
+      // ─── 과제 ──────────────────────────────────────────────
+      { path: 'assignments', element: <AssignmentList /> },
+      { path: 'assignments/:id', element: <AssignmentDetail /> },
+      {
+        path: 'assignments/create',
+        element: (
+          <ProtectedRoute roles={['PROFESSOR', 'STAFF', 'ADMIN']}>
+            <AssignmentCreate />
+          </ProtectedRoute>
+        ),
+      },
+
+      // ─── 시험 ──────────────────────────────────────────────
+      { path: 'exams', element: <ExamList /> },
+      { path: 'exams/:id', element: <ExamDetail /> },
+      {
+        path: 'exams/create',
+        element: (
+          <ProtectedRoute roles={['PROFESSOR', 'STAFF', 'ADMIN']}>
+            <ExamCreate />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'exams/my-schedule',
+        element: (
+          <ProtectedRoute roles={['STUDENT']}>
+            <MyExamSchedule />
           </ProtectedRoute>
         ),
       },

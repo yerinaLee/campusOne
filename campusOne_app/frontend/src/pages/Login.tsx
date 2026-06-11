@@ -1,7 +1,7 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { authApi } from '@/api/auth';
 import { useAuthStore } from '@/store/authStore';
 import { University } from 'lucide-react';
@@ -15,6 +15,7 @@ type LoginForm = z.infer<typeof loginSchema>;
 
 export default function Login() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { login } = useAuthStore();
 
   const {
@@ -30,7 +31,8 @@ export default function Login() {
     try {
       const result = await authApi.login(data.username, data.password);
       login(result.accessToken, result.refreshToken, result.user);
-      navigate('/', { replace: true });
+      const redirect = searchParams.get('redirect');
+      navigate(redirect ?? '/', { replace: true });
     } catch (err: unknown) {
       const message =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
